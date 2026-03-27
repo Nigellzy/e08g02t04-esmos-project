@@ -21,11 +21,8 @@ steps:
       cd /home/G02T04/e08g02t04-esmos-project || exit 1
       
       # 2. Hard Reset Code (Data-Safe)
-      # Fix: Added 'fi' to properly close the if statement
-      if [ ! -d ".git" ]; then
-          git init -q
-          git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-      fi
+      # Simplified to a single-line check to prevent Azure SSH syntax errors
+      [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       
       git fetch origin $(Build.SourceBranch) -q
       git reset --hard FETCH_HEAD -q
