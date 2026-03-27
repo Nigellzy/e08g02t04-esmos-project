@@ -2,7 +2,7 @@ trigger:
 - main
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: 'Default'
 
 variables:
 - group: esmos-secrets # Name of the group you created in Azure Library
