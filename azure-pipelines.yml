@@ -8,50 +8,27 @@ variables:
 - group: esmos-secrets
 
 steps:
-# STEP 1: Safely generate the .env file locally on your laptop
-- bash: |
-    echo "POSTGRES_PASSWORD=$MAPPED_DB_PASSWORD" > .env
-    echo "MARIADB_PASSWORD=$MAPPED_MOODLE_PASSWORD" >> .env
-    echo "ODOO_ADMIN_PASSWORD=$MAPPED_ODOO_PASSWORD" >> .env
-  displayName: 'Generate Secure .env File locally'
-  env:
-    MAPPED_DB_PASSWORD: $(DB_PASSWORD)
-    MAPPED_MOODLE_PASSWORD: $(MOODLE_DB_PASSWORD)
-    MAPPED_ODOO_PASSWORD: $(ODOO_ADMIN_PASSWORD)
-
-# STEP 2: Fetch the latest code on the Staging VM
 - task: SSH@0
-  displayName: 'Fetch Latest Code to Staging'
+  displayName: 'Deploy ESMOS via Pipeline'
   inputs:
     sshEndpoint: 'ssh-odoo17-staging'
     runOptions: 'commands'
-    failOnStdErr: false
+    failOnStdErr: false # This stops Azure from crashing when Docker talks
     commands: |
-      mkdir -p /home/G02T04/e08g02t04-esmos-project
-      cd /home/G02T04/e08g02t04-esmos-project
-      git init -q
-      git remote remove origin 2>/dev/null || true
-      git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-      git fetch origin -q
-      git reset --hard origin/main -q
-
-# STEP 3: Securely transfer the .env file to the VM
-- task: CopyFilesOverSSH@0
-  displayName: 'Securely Transfer .env to Staging'
-  inputs:
-    sshEndpoint: 'ssh-odoo17-staging'
-    sourceFolder: '$(System.DefaultWorkingDirectory)'
-    contents: '.env'
-    targetFolder: '/home/G02T04/e08g02t04-esmos-project'
-
-# STEP 4: Build and Start Docker Containers
-- task: SSH@0
-  displayName: 'Start ESMOS Containers'
-  inputs:
-    sshEndpoint: 'ssh-odoo17-staging'
-    runOptions: 'commands'
-    commands: |
-      cd /home/G02T04/e08g02t04-esmos-project
-      chmod +x update_code.sh
-      ./update_code.sh
+      # 1. Start clean: wipe the folder and do a fresh clone
+      cd /home/G02T04
+      sudo rm -rf e08g02t04-esmos-project
+      git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
+      
+      # 2. Go into the fresh project folder
+      cd e08g02t04-esmos-project
+      
+      # 3. Inject the passwords directly into the folder
+      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+      
+      # 4. Spin up the containers (Bypassing update_code.sh completely!)
+      sudo docker compose down
+      sudo docker compose up -d
     readyTimeout: '20000'
