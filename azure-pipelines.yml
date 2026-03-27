@@ -13,22 +13,6 @@ steps:
   inputs:
     sshEndpoint: 'ssh-odoo17-staging'
     runOptions: 'commands'
-    failOnStdErr: false 
-    trigger:
-- main
-
-pool:
-  name: 'Default'
-
-variables:
-- group: esmos-secrets
-
-steps:
-- task: SSH@0
-  displayName: 'Inject Secrets and Deploy to Staging'
-  inputs:
-    sshEndpoint: 'ssh-odoo17-staging'
-    runOptions: 'commands'
     failOnStdErr: false
     commands: |
       cd /home/G02T04
@@ -50,5 +34,4 @@ steps:
       
       chmod +x update_code.sh
       ./update_code.sh
-    readyTimeout: '20000'
     readyTimeout: '20000'
