@@ -16,22 +16,20 @@ steps:
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
-      PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
-      
-      # 0. Reclaim Ownership (Prevents directory lockouts from previous runs)
-      sudo chown -R $USER:$USER $PROJECT_DIR || true
+      # 0. Reclaim Ownership (Hardcoded username to prevent $USER errors)
+      sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project || true
 
-      # 1. Setup Environment
-      mkdir -p $PROJECT_DIR
-      cd $PROJECT_DIR || exit 1
+      # 1. Setup Environment (Hardcoded absolute path)
+      mkdir -p /home/G02T04/e08g02t04-esmos-project
+      cd /home/G02T04/e08g02t04-esmos-project || exit 1
       
-      # 2. Hard Reset Code (Pulls infrastructure AND your new 'addons' folder from GitHub)
+      # 2. Hard Reset Code (Pulls from GitHub)
       [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
       git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       git fetch origin $(Build.SourceBranch) -q
       git reset --hard FETCH_HEAD -q
       
-      # 3. Inject Secrets Securely
+      # 3. Inject Secrets
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
@@ -39,22 +37,18 @@ steps:
       echo "MARIADB_USER=moodle" >> .env
       
       # 4. Create Filestore & Fix Permissions
-      # Git brings in the 'addons' folder, we just need to ensure filestore exists for attachments
       mkdir -p filestore
       sudo chown -R 101:101 ./filestore
       sudo chown -R 101:101 ./addons
       sudo chmod -R 775 .
       
-      # 5. Build and Deploy (Injects passwords into Odoo config during build)
+      # 5. Build and Deploy
       sudo docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
       sudo docker compose down --remove-orphans
       sudo docker compose up -d
       
       # 6. Automate the Database Upgrade
-      # Give the databases 15 seconds to boot up, then force Odoo to apply your custom addons
       echo "Waiting for databases to initialize..."
       sleep 15
       sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-      
-      # Restart Odoo so all UI changes from the custom addons take effect
       sudo docker compose restart web
