@@ -17,18 +17,16 @@ steps:
     readyTimeout: "20000"
     commands: |
       # 1. Setup Environment & Path Enforcement
-      # Using hardcoded paths prevents "missing operand" errors in Azure SSH tasks
       mkdir -p /home/G02T04/e08g02t04-esmos-project
       cd /home/G02T04/e08g02t04-esmos-project || exit 1
       
       # 2. Hard Reset Code (Data-Safe)
-      # Ensures we stay inside the project folder and don't mess up the home directory
+      # Fix: Added 'fi' to properly close the if statement
       if [ ! -d ".git" ]; then
           git init -q
           git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       fi
       
-      # Fetch and Reset using FETCH_HEAD (PR and Branch safe)
       git fetch origin $(Build.SourceBranch) -q
       git reset --hard FETCH_HEAD -q
       
@@ -36,16 +34,14 @@ steps:
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-      # Useful for your manual restore scripts
       echo "MARIADB_DATABASE=bitnami_moodle" >> .env
       echo "MARIADB_USER=moodle" >> .env
       
-      # 4. Permissions Fix (For Odoo & Moodle Restore)
+      # 4. Permissions Fix
       mkdir -p filestore addons
       sudo chown -R 101:101 filestore addons
       sudo chmod -R 775 filestore addons
       
       # 5. Native Docker Deploy
-      # Explicitly pointing to the local compose file ensures no "ghost" containers
       sudo docker compose -f docker-compose.yml down --remove-orphans
       sudo docker compose -f docker-compose.yml up -d --build
