@@ -18,16 +18,16 @@ steps:
         # 1. Start clean
         cd /home/G02T04
         sudo rm -rf e08g02t04-esmos-project
-
+        
         # 2. Clone fresh
         git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
         cd e08g02t04-esmos-project
-
+        
         # 3. Inject secrets
         echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
         echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
         echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-
+        
         # 4. Use -f to point directly to the file to avoid "not found" errors
         # This assumes the file is in the root of your repo. 
         sudo docker compose -f docker-compose.yml down --remove-orphans
