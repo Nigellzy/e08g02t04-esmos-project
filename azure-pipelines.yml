@@ -1,35 +1,40 @@
 trigger:
-  - main
+- main
 
 pool:
   name: "Default"
 
 variables:
-  - group: esmos-secrets
+- group: esmos-secrets
 
 steps:
-  - task: SSH@0
-    displayName: "Deploy ESMOS via Pipeline"
-    inputs:
-      sshEndpoint: "ssh-odoo17-staging"
-      runOptions: "commands"
-      failOnStdErr: false # This stops Azure from crashing when Docker talks
-      commands: |
-        # 1. Start clean
-        cd /home/G02T04
-        sudo rm -rf e08g02t04-esmos-project
-        
-        # 2. Clone fresh
-        git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
-        cd e08g02t04-esmos-project
-        
-        # 3. Inject secrets
-        echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-        echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-        echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-        
-        # 4. Use -f to point directly to the file to avoid "not found" errors
-        # This assumes the file is in the root of your repo. 
-        sudo docker compose -f docker-compose.yml down --remove-orphans
-        sudo docker compose -f docker-compose.yml up -d
-      readyTimeout: "20000"
+- task: SSH@0
+  displayName: "Deploy ESMOS via Pipeline"
+  inputs:
+    sshEndpoint: "ssh-odoo17-staging"
+    runOptions: "commands"
+    failOnStdErr: false
+    readyTimeout: "20000"
+    commands: |
+      # 1. Define the absolute path to avoid "not found" errors
+      PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
+      
+      # 2. Force a clean start by removing the old directory
+      # We use sudo here because Docker might have created root-owned files
+      sudo rm -rf $PROJECT_DIR
+      
+      # 3. Clone the repo directly into the target directory
+      git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git $PROJECT_DIR
+      
+      # 4. Inject secrets into the .env file using the absolute path
+      # Azure DevOps will safely mask these in the logs
+      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > $PROJECT_DIR/.env
+      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> $PROJECT_DIR/.env
+      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> $PROJECT_DIR/.env
+      
+      # 5. Execute Docker Compose using the explicit file path
+      # 'down' ensures we stop any old "ghost" containers first
+      sudo docker compose -f $PROJECT_DIR/docker-compose.yml down --remove-orphans
+      
+      # 6. Start the containers in detached mode
+      sudo docker compose -f $PROJECT_DIR/docker-compose.yml up -d
