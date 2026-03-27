@@ -15,7 +15,7 @@ steps:
     runOptions: 'commands'
     commands: |
       cd /home/G02T04
-      if [ ! -d "e08g02t04-esmos-project" ]; then git clone https://github.com/Nigellzy/e08g02t04-esmos-project.git; fi
+      [ -d "e08g02t04-esmos-project" ] || git clone https://github.com/Nigellzy/e08g02t04-esmos-project.git
       cd e08g02t04-esmos-project
       git pull
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
