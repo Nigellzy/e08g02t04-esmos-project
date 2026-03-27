@@ -1,11 +1,19 @@
 services:
   # --- ESMOS (ODOO) 17.0 SYSTEM ---
   web:
-    build: .
+    build:
+      context: .
+      args:
+        - ODOO_ADMIN_PASSWORD=${ODOO_ADMIN_PASSWORD}
+    restart: always
     depends_on:
       - db
     ports:
       - "8069:8069"
+    environment:
+      - HOST=db
+      - USER=odoo
+      - PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - ./addons:/mnt/extra-addons
       - ./filestore:/var/lib/odoo/filestore
@@ -13,9 +21,10 @@ services:
 
   db:
     image: postgres:13
+    restart: always
     environment:
       POSTGRES_DB: postgres
-      POSTGRES_PASSWORD: odoo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_USER: odoo
     volumes:
       - odoo-db-data:/var/lib/postgresql/data
@@ -23,30 +32,30 @@ services:
   # --- MOODLE 4.5.3 SYSTEM ---
   moodle-db:
     image: mariadb:10.6
+    restart: always
     environment:
-      MARIADB_USER: moodle
-      MARIADB_PASSWORD: moodle_secure_password
-      MARIADB_DATABASE: bitnami_moodle
-      MARIADB_ROOT_PASSWORD: root_secure_password
+      - MARIADB_USER=moodle
+      - MARIADB_PASSWORD=${MARIADB_PASSWORD}
+      - MARIADB_DATABASE=bitnami_moodle
+      - MARIADB_ROOT_PASSWORD=${MARIADB_PASSWORD}
     volumes:
       - moodle-db-data:/bitnami/mariadb
-    restart: always
 
   moodle:
     image: bitnamilegacy/moodle:4.5.3
+    restart: always
     depends_on:
       - moodle-db
     ports:
       - "8080:8080"
     environment:
-      MOODLE_DATABASE_HOST: moodle-db
-      MOODLE_DATABASE_USER: moodle
-      MOODLE_DATABASE_PASSWORD: moodle_secure_password
-      MOODLE_DATABASE_NAME: bitnami_moodle
+      - MOODLE_DATABASE_HOST=moodle-db
+      - MOODLE_DATABASE_USER=moodle
+      - MOODLE_DATABASE_PASSWORD=${MARIADB_PASSWORD}
+      - MOODLE_DATABASE_NAME=bitnami_moodle
     volumes:
       - moodle-web-data:/bitnami/moodle
       - moodle-moodledata:/bitnami/moodledata
-    restart: always
 
 volumes:
   odoo-web-data:

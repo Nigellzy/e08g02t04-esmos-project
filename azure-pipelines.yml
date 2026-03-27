@@ -4,21 +4,24 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+variables:
+- group: esmos-secrets # Name of the group you created in Azure Library
+
 steps:
 - task: SSH@0
-  displayName: 'Deploy Docker Stack to Staging'
+  displayName: 'Inject Secrets and Deploy to Staging'
   inputs:
-    sshEndpoint: 'ssh-odoo17-staging' # Matches your screenshot perfectly
+    sshEndpoint: 'ssh-odoo17-staging'
     runOptions: 'commands'
     commands: |
-      # 1. Ensure the project folder exists on the VM
-      if [ ! -d "/home/G02T04/e08g02t04-esmos-project" ]; then
-        cd /home/G02T04
-        git clone https://github.com/Nigellzy/e08g02t04-esmos-project.git
-      fi
-      
-      # 2. Execute the update script
       cd /home/G02T04/e08g02t04-esmos-project
+      git pull
+      
+      # Dynamically generate the .env file from Azure Secrets
+      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+      
       chmod +x update_code.sh
       ./update_code.sh
     readyTimeout: '20000'
