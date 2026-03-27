@@ -1,0 +1,27 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+- group: esmos-secrets # Name of the group you created in Azure Library
+
+steps:
+- task: SSH@0
+  displayName: 'Inject Secrets and Deploy to Staging'
+  inputs:
+    sshEndpoint: 'ssh-odoo17-staging'
+    runOptions: 'commands'
+    commands: |
+      cd /home/G02T04/e08g02t04-esmos-project
+      git pull
+      
+      # Dynamically generate the .env file from Azure Secrets
+      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+      
+      chmod +x update_code.sh
+      ./update_code.sh
+    readyTimeout: '20000'
