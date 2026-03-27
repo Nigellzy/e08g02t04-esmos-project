@@ -15,23 +15,27 @@ steps:
     runOptions: 'commands'
     failOnStdErr: false
     commands: |
-      cd /home/G02T04
+      # 1. Ensure the folder exists, then go inside
+      mkdir -p /home/G02T04/e08g02t04-esmos-project
+      cd /home/G02T04/e08g02t04-esmos-project
       
-      # 1. Self-Healing: If the folder exists but is NOT a valid git repo, delete it completely
-      [ -d "e08g02t04-esmos-project/.git" ] || rm -rf e08g02t04-esmos-project
+      # 2. Force the folder to be a Git repository
+      git init
       
-      # 2. Safely clone if the folder is missing
-      [ -d "e08g02t04-esmos-project" ] || git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
+      # 3. Connect it to your GitHub (ignore error if it's already connected)
+      git remote remove origin || true
+      git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       
-      # 3. Enter and update
-      cd e08g02t04-esmos-project
-      git pull -q
+      # 4. Fetch the absolute latest code and FORCE the folder to match it
+      git fetch origin
+      git reset --hard origin/main
       
-      # 4. Inject passwords and run
+      # 5. Inject passwords securely
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
       
+      # 6. Execute the build
       chmod +x update_code.sh
       ./update_code.sh
     readyTimeout: '20000'
