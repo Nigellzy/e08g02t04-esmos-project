@@ -16,39 +16,40 @@ steps:
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
-      # 0. Reclaim Ownership (Hardcoded username to prevent $USER errors)
-      sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project || true
-
-      # 1. Setup Environment (Hardcoded absolute path)
-      mkdir -p /home/G02T04/e08g02t04-esmos-project
-      cd /home/G02T04/e08g02t04-esmos-project || exit 1
+      PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
       
-      # 2. Hard Reset Code (Pulls from GitHub)
-      [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
-      git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-      git fetch origin $(Build.SourceBranch) -q
-      git reset --hard FETCH_HEAD -q
+      # 1. Setup Environment & Reclaim Ownership
+      # Force-create the folder first, then take ownership so Git can run without errors
+      sudo mkdir -p $PROJECT_DIR
+      sudo chown -R G02T04:G02T04 $PROJECT_DIR
+      cd $PROJECT_DIR || exit 1
       
-      # 3. Inject Secrets
-      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-      echo "MARIADB_DATABASE=bitnami_moodle" >> .env
-      echo "MARIADB_USER=moodle" >> .env
+      # 2. Hard Reset Code (Bulletproofed with -C flag to prevent spilling)
+      [ ! -d "$PROJECT_DIR/.git" ] && git -C $PROJECT_DIR init -q && git -C $PROJECT_DIR remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
+      git -C $PROJECT_DIR remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+      git -C $PROJECT_DIR fetch origin $(Build.SourceBranch) -q
+      git -C $PROJECT_DIR reset --hard FETCH_HEAD -q
+      
+      # 3. Inject Secrets Securely using Absolute Paths
+      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > $PROJECT_DIR/.env
+      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> $PROJECT_DIR/.env
+      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> $PROJECT_DIR/.env
+      echo "MARIADB_DATABASE=bitnami_moodle" >> $PROJECT_DIR/.env
+      echo "MARIADB_USER=moodle" >> $PROJECT_DIR/.env
       
       # 4. Create Filestore & Fix Permissions
-      mkdir -p filestore
-      sudo chown -R 101:101 ./filestore
-      sudo chown -R 101:101 ./addons
-      sudo chmod -R 775 .
+      mkdir -p $PROJECT_DIR/filestore
+      sudo chown -R 101:101 $PROJECT_DIR/filestore
+      sudo chown -R 101:101 $PROJECT_DIR/addons
+      sudo chmod -R 775 $PROJECT_DIR
       
       # 5. Build and Deploy
-      sudo docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-      sudo docker compose down --remove-orphans
-      sudo docker compose up -d
+      sudo docker compose -f $PROJECT_DIR/docker-compose.yml build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+      sudo docker compose -f $PROJECT_DIR/docker-compose.yml down --remove-orphans
+      sudo docker compose -f $PROJECT_DIR/docker-compose.yml up -d
       
       # 6. Automate the Database Upgrade
       echo "Waiting for databases to initialize..."
       sleep 15
-      sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-      sudo docker compose restart web
+      sudo docker compose -f $PROJECT_DIR/docker-compose.yml exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+      sudo docker compose -f $PROJECT_DIR/docker-compose.yml restart web
