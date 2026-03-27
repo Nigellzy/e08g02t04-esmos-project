@@ -16,17 +16,16 @@ steps:
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
-      # 1. Setup Environment
-      PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
-      mkdir -p $PROJECT_DIR
-      cd $PROJECT_DIR
+      # 1. Setup Environment (Direct Paths)
+      mkdir -p /home/G02T04/e08g02t04-esmos-project
+      cd /home/G02T04/e08g02t04-esmos-project
       
       # 2. Hard Reset Code (Preserves Volumes, Overwrites Files)
       git init -q
       git remote remove origin 2>/dev/null || true
       git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       
-      # Fetch the current branch dynamically instead of hardcoding 'main'
+      # Dynamics: Pull the branch that triggered this run
       git fetch origin -q
       git reset --hard origin/$(Build.SourceBranchName) -q
       
@@ -35,10 +34,9 @@ steps:
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
       
-      # 4. Permissions & Execution
-      # Ensure the entrypoint script is executable
+      # 4. Permissions
       chmod +x update_code.sh 2>/dev/null || true
       
-      # 5. Native Docker Deploy (Bypassing Buildx)
+      # 5. Native Docker Deploy
       sudo docker compose down --remove-orphans
       sudo docker compose up -d --build
