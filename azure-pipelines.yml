@@ -17,9 +17,9 @@ steps:
     readyTimeout: "20000"
     commands: |
       # 1. Setup Environment & Strict Pathing
-      PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
-      mkdir -p $PROJECT_DIR
-      cd $PROJECT_DIR || exit 1
+      
+      mkdir -p /home/G02T04/e08g02t04-esmos-project
+      cd /home/G02T04/e08g02t04-esmos-project || exit 1
       
       # 2. Hard Reset Code (Data-Safe)
       # Ensure we are working with a clean git state in the RIGHT folder
