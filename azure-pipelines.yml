@@ -16,18 +16,18 @@ steps:
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
-      # 1. Setup Environment (Direct Paths)
+      # 1. Setup Environment
       mkdir -p /home/G02T04/e08g02t04-esmos-project
       cd /home/G02T04/e08g02t04-esmos-project
       
-      # 2. Hard Reset Code (Preserves Volumes, Overwrites Files)
+      # 2. Hard Reset Code (Data-Safe)
       git init -q
       git remote remove origin 2>/dev/null || true
       git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       
-      # Dynamics: Pull the branch that triggered this run
-      git fetch origin -q
-      git reset --hard origin/$(Build.SourceBranchName) -q
+      # Use FETCH_HEAD to bypass branch name issues
+      git fetch origin $(Build.SourceBranch) -q
+      git reset --hard FETCH_HEAD -q
       
       # 3. Securely Inject Secrets
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
@@ -38,5 +38,6 @@ steps:
       chmod +x update_code.sh 2>/dev/null || true
       
       # 5. Native Docker Deploy
+      # Using 'sudo' to ensure we have control over the Docker daemon
       sudo docker compose down --remove-orphans
       sudo docker compose up -d --build
