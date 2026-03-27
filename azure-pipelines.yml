@@ -1,0 +1,24 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: SSH@0
+  displayName: 'Deploy Docker Stack to Staging'
+  inputs:
+    sshEndpoint: 'ssh-odoo17-staging' # Matches your screenshot perfectly
+    runOptions: 'commands'
+    commands: |
+      # 1. Ensure the project folder exists on the VM
+      if [ ! -d "/home/G02T04/e08g02t04-esmos-project" ]; then
+        cd /home/G02T04
+        git clone https://github.com/Nigellzy/e08g02t04-esmos-project.git
+      fi
+      
+      # 2. Execute the update script
+      cd /home/G02T04/e08g02t04-esmos-project
+      chmod +x update_code.sh
+      ./update_code.sh
+    readyTimeout: '20000'
