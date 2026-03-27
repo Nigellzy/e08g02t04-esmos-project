@@ -14,14 +14,26 @@ steps:
     sshEndpoint: 'ssh-odoo17-staging'
     runOptions: 'commands'
     commands: |
-      cd /home/G02T04/e08g02t04-esmos-project
+      # 1. Start in the home directory
+      cd /home/G02T04
+      
+      # 2. If the project folder doesn't exist, clone it first!
+      if [ ! -d "e08g02t04-esmos-project" ]; then
+        git clone https://github.com/Nigellzy/e08g02t04-esmos-project.git
+      fi
+      
+      # 3. NOW it is safe to enter the folder
+      cd e08g02t04-esmos-project
+      
+      # 4. Pull any latest changes just in case
       git pull
       
-      # Dynamically generate the .env file from Azure Secrets
+      # 5. Inject the secrets
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
       
+      # 6. Run the script
       chmod +x update_code.sh
       ./update_code.sh
     readyTimeout: '20000'
