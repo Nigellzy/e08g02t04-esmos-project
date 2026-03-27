@@ -14,15 +14,41 @@ steps:
     sshEndpoint: 'ssh-odoo17-staging'
     runOptions: 'commands'
     failOnStdErr: false 
+    trigger:
+- main
+
+pool:
+  name: 'Default'
+
+variables:
+- group: esmos-secrets
+
+steps:
+- task: SSH@0
+  displayName: 'Inject Secrets and Deploy to Staging'
+  inputs:
+    sshEndpoint: 'ssh-odoo17-staging'
+    runOptions: 'commands'
+    failOnStdErr: false
     commands: |
       cd /home/G02T04
-      # Added -q (quiet) to suppress the informational output
+      
+      # 1. Self-Healing: If the folder exists but is NOT a valid git repo, delete it completely
+      [ -d "e08g02t04-esmos-project/.git" ] || rm -rf e08g02t04-esmos-project
+      
+      # 2. Safely clone if the folder is missing
       [ -d "e08g02t04-esmos-project" ] || git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
+      
+      # 3. Enter and update
       cd e08g02t04-esmos-project
       git pull -q
+      
+      # 4. Inject passwords and run
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+      
       chmod +x update_code.sh
       ./update_code.sh
+    readyTimeout: '20000'
     readyTimeout: '20000'
