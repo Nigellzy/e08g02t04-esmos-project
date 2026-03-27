@@ -5,7 +5,7 @@ pool:
   name: 'Default'
 
 variables:
-- group: esmos-secrets # Name of the group you created in Azure Library
+- group: esmos-secrets
 
 steps:
 - task: SSH@0
@@ -14,26 +14,13 @@ steps:
     sshEndpoint: 'ssh-odoo17-staging'
     runOptions: 'commands'
     commands: |
-      # 1. Start in the home directory
       cd /home/G02T04
-      
-      # 2. If the project folder doesn't exist, clone it first!
-      if [ ! -d "e08g02t04-esmos-project" ]; then
-        git clone https://github.com/Nigellzy/e08g02t04-esmos-project.git
-      fi
-      
-      # 3. NOW it is safe to enter the folder
+      if [ ! -d "e08g02t04-esmos-project" ]; then git clone https://github.com/Nigellzy/e08g02t04-esmos-project.git; fi
       cd e08g02t04-esmos-project
-      
-      # 4. Pull any latest changes just in case
       git pull
-      
-      # 5. Inject the secrets
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-      
-      # 6. Run the script
       chmod +x update_code.sh
       ./update_code.sh
     readyTimeout: '20000'
