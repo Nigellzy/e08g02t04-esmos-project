@@ -1,40 +1,54 @@
 trigger:
-  - main
+- main
 
 pool:
   name: "Default"
 
 variables:
-  - group: esmos-secrets
+- group: esmos-secrets
 
 steps:
 - task: SSH@0
+  displayName: "Deploy ESMOS via Pipeline"
   inputs:
     sshEndpoint: "ssh-odoo17-staging"
     runOptions: "commands"
+    failOnStdErr: false
+    readyTimeout: "20000"
     commands: |
-      # 1. Setup Environment
+      # 1. Setup Environment & Path Enforcement
+      # We use the full path to avoid any "missing operand" errors
       mkdir -p /home/G02T04/e08g02t04-esmos-project
       cd /home/G02T04/e08g02t04-esmos-project || exit 1
       
-      # 2. Hard Reset Code
+      # 2. Hard Reset Code 
+      # Ensures we are on the latest commit from GitHub
       [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
       git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       git fetch origin $(Build.SourceBranch) -q
       git reset --hard FETCH_HEAD -q
       
-      # 3. Inject Secrets (Absolute paths for reliability)
-      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
-      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+      # 3. Inject Secrets (POST-GIT RESET)
+      # We do this after git reset so the .env file isn't accidentally deleted
+      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+      echo "MARIADB_DATABASE=bitnami_moodle" >> .env
+      echo "MARIADB_USER=moodle" >> .env
       
-      # 4. Permissions Fix
+      # 4. Create Directories & Permissions Fix
+      # We create these BEFORE chown to avoid "No such file or directory"
       mkdir -p filestore addons
+      
+      # Use sudo for permissions to ensure Odoo (UID 101) can write to these volumes
       sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore
       sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/addons
       sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
       
       # 5. Build and Deploy
-      # Passing both passwords as build args is required for the Odoo config file [cite: 3]
+      # Critical: Pass passwords as build-args so the Dockerfile can write odoo.conf correctly
       sudo docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-      sudo docker compose up -d --remove-orphans
+      
+      # Clean start to ensure the new secrets are applied
+      sudo docker compose down --remove-orphans
+      sudo docker compose up -d
