@@ -13,11 +13,13 @@ steps:
   inputs:
     sshEndpoint: 'ssh-odoo17-staging'
     runOptions: 'commands'
+    failOnStdErr: false 
     commands: |
       cd /home/G02T04
-      [ -d "e08g02t04-esmos-project" ] || git clone https://github.com/Nigellzy/e08g02t04-esmos-project.git
+      # Added -q (quiet) to suppress the informational output
+      [ -d "e08g02t04-esmos-project" ] || git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
       cd e08g02t04-esmos-project
-      git pull
+      git pull -q
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
