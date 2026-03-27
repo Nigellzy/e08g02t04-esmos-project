@@ -1,22 +1,19 @@
 FROM odoo:17.0
 
 USER root
-
-# Define Build Argument for the Master Password
 ARG ODOO_ADMIN_PASSWORD
+ARG POSTGRES_PASSWORD
 
 RUN pip3 install num2words xlwt
 RUN mkdir -p /etc/odoo /mnt/extra-addons /var/lib/odoo/filestore
 
-RUN touch /etc/odoo/odoo.conf
+# Create a clean config that points to the 'db' container
 RUN echo "[options]" > /etc/odoo/odoo.conf && \
     echo "addons_path = /usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons" >> /etc/odoo/odoo.conf && \
     echo "data_dir = /var/lib/odoo" >> /etc/odoo/odoo.conf && \
-    echo "limit_time_cpu = 600" >> /etc/odoo/odoo.conf && \
-    echo "limit_time_real = 1200" >> /etc/odoo/odoo.conf && \
-    echo "db_maxconn = 64" >> /etc/odoo/odoo.conf && \
-    echo "workers = 2" >> /etc/odoo/odoo.conf && \
-    echo "max_cron_threads = 1" >> /etc/odoo/odoo.conf && \
+    echo "db_host = db" >> /etc/odoo/odoo.conf && \
+    echo "db_user = odoo" >> /etc/odoo/odoo.conf && \
+    echo "db_password = ${POSTGRES_PASSWORD}" >> /etc/odoo/odoo.conf && \
     echo "admin_passwd = ${ODOO_ADMIN_PASSWORD}" >> /etc/odoo/odoo.conf
 
 RUN chown -R odoo:odoo /etc/odoo /mnt/extra-addons /var/lib/odoo/filestore
