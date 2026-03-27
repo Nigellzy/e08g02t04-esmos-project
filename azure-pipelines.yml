@@ -8,34 +8,50 @@ variables:
 - group: esmos-secrets
 
 steps:
+# STEP 1: Safely generate the .env file locally on your laptop
+- bash: |
+    echo "POSTGRES_PASSWORD=$MAPPED_DB_PASSWORD" > .env
+    echo "MARIADB_PASSWORD=$MAPPED_MOODLE_PASSWORD" >> .env
+    echo "ODOO_ADMIN_PASSWORD=$MAPPED_ODOO_PASSWORD" >> .env
+  displayName: 'Generate Secure .env File locally'
+  env:
+    MAPPED_DB_PASSWORD: $(DB_PASSWORD)
+    MAPPED_MOODLE_PASSWORD: $(MOODLE_DB_PASSWORD)
+    MAPPED_ODOO_PASSWORD: $(ODOO_ADMIN_PASSWORD)
+
+# STEP 2: Fetch the latest code on the Staging VM
 - task: SSH@0
-  displayName: 'Inject Secrets and Deploy to Staging'
+  displayName: 'Fetch Latest Code to Staging'
   inputs:
     sshEndpoint: 'ssh-odoo17-staging'
     runOptions: 'commands'
     failOnStdErr: false
     commands: |
-      # 1. Ensure the folder exists, then go inside
       mkdir -p /home/G02T04/e08g02t04-esmos-project
       cd /home/G02T04/e08g02t04-esmos-project
-      
-      # 2. Force the folder to be a Git repository
-      git init
-      
-      # 3. Connect it to your GitHub (ignore error if it's already connected)
-      git remote remove origin || true
+      git init -q
+      git remote remove origin 2>/dev/null || true
       git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-      
-      # 4. Fetch the absolute latest code and FORCE the folder to match it
-      git fetch origin
-      git reset --hard origin/main
-      
-      # 5. Inject passwords securely
-      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-      
-      # 6. Execute the build
+      git fetch origin -q
+      git reset --hard origin/main -q
+
+# STEP 3: Securely transfer the .env file to the VM
+- task: CopyFilesOverSSH@0
+  displayName: 'Securely Transfer .env to Staging'
+  inputs:
+    sshEndpoint: 'ssh-odoo17-staging'
+    sourceFolder: '$(System.DefaultWorkingDirectory)'
+    contents: '.env'
+    targetFolder: '/home/G02T04/e08g02t04-esmos-project'
+
+# STEP 4: Build and Start Docker Containers
+- task: SSH@0
+  displayName: 'Start ESMOS Containers'
+  inputs:
+    sshEndpoint: 'ssh-odoo17-staging'
+    runOptions: 'commands'
+    commands: |
+      cd /home/G02T04/e08g02t04-esmos-project
       chmod +x update_code.sh
       ./update_code.sh
     readyTimeout: '20000'
