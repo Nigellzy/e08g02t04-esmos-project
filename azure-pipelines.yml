@@ -16,24 +16,24 @@ steps:
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
-      # 1. Setup the Directory (Does NOT delete existing data)
+      # 1. Enter the project directory
       mkdir -p /home/G02T04/e08g02t04-esmos-project
       cd /home/G02T04/e08g02t04-esmos-project
       
-      # 2. Update Code Safely (The "No-Delete" Workflow)
-      # This initializes git if missing, fetches latest, and overwrites ONLY code files.
+      # 2. Sync code with GitHub (Data-Safe)
       git init -q
       git remote remove origin 2>/dev/null || true
       git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       git fetch origin main -q
       git reset --hard origin/main -q
       
-      # 3. Inject Secrets (Overwrites .env, but doesn't touch DB volumes)
+      # 3. Inject secrets
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
       
-      # 4. Deploy (Standard Docker Lifecycle)
-      # We use 'sudo' explicitly here. 
+      # 4. Standard Docker Build and Deploy (Bypassing Buildx)
+      # --build forces Docker to re-read your Dockerfile and update the ESMOS web image
+      # without using the buildx driver.
       sudo docker compose down --remove-orphans
-      sudo docker compose up -d
+      sudo docker compose up -d --build
