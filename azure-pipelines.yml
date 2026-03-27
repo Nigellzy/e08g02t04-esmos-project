@@ -16,23 +16,24 @@ steps:
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
-      # 1. Define the absolute path
-      PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
+      # 1. Setup the Directory (Does NOT delete existing data)
+      mkdir -p /home/G02T04/e08g02t04-esmos-project
+      cd /home/G02T04/e08g02t04-esmos-project
       
-      # 2. STOP DOCKER FIRST (This releases the file locks)
-      # We ignore errors here in case the folder/containers don't exist yet
-      sudo docker compose -f $PROJECT_DIR/docker-compose.yml down --remove-orphans || true
+      # 2. Update Code Safely (The "No-Delete" Workflow)
+      # This initializes git if missing, fetches latest, and overwrites ONLY code files.
+      git init -q
+      git remote remove origin 2>/dev/null || true
+      git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+      git fetch origin main -q
+      git reset --hard origin/main -q
       
-      # 3. Now it is safe to delete
-      sudo rm -rf $PROJECT_DIR
+      # 3. Inject Secrets (Overwrites .env, but doesn't touch DB volumes)
+      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
       
-      # 4. Clone fresh
-      git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git $PROJECT_DIR
-      
-      # 5. Inject secrets
-      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > $PROJECT_DIR/.env
-      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> $PROJECT_DIR/.env
-      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> $PROJECT_DIR/.env
-      
-      # 6. Start the containers
-      sudo docker compose -f $PROJECT_DIR/docker-compose.yml up -d
+      # 4. Deploy (Standard Docker Lifecycle)
+      # We use 'sudo' explicitly here. 
+      sudo docker compose down --remove-orphans
+      sudo docker compose up -d
