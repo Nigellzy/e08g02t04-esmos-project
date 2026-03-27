@@ -16,28 +16,26 @@ steps:
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
-      # 1. Setup Environment & Path Enforcement
+      # 1. Setup Environment
       mkdir -p /home/G02T04/e08g02t04-esmos-project
       cd /home/G02T04/e08g02t04-esmos-project || exit 1
       
-      # 2. Hard Reset Code (Single-line logic to avoid SSH Syntax Errors)
+      # 2. Hard Reset Code
       [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
       git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       git fetch origin $(Build.SourceBranch) -q
       git reset --hard FETCH_HEAD -q
       
-      # 3. Inject Secrets
+      # 3. Inject Secrets (Fixed variable mapping)
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-      echo "MARIADB_DATABASE=bitnami_moodle" >> .env
-      echo "MARIADB_USER=moodle" >> .env
       
-      # 4. Permissions Fix
+      # 4. Permissions Fix (Ensure Odoo user 101 can write to volumes)
       mkdir -p filestore addons
-      sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project
+      sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore
       sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
       
       # 5. Native Docker Deploy
-      sudo docker compose -f docker-compose.yml down --remove-orphans
-      sudo docker compose -f docker-compose.yml up -d --build
+      sudo docker compose down --remove-orphans
+      sudo docker compose up -d --build
