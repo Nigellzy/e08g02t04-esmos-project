@@ -1,34 +1,35 @@
 trigger:
-- main
+  - main
 
 pool:
-  name: 'Default'
+  name: "Default"
 
 variables:
-- group: esmos-secrets
+  - group: esmos-secrets
 
 steps:
-- task: SSH@0
-  displayName: 'Deploy ESMOS via Pipeline'
-  inputs:
-    sshEndpoint: 'ssh-odoo17-staging'
-    runOptions: 'commands'
-    failOnStdErr: false # This stops Azure from crashing when Docker talks
-    commands: |
-      # 1. Start clean: wipe the folder and do a fresh clone
-      cd /home/G02T04
-      sudo rm -rf e08g02t04-esmos-project
-      git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
-      
-      # 2. Go into the fresh project folder
-      cd e08g02t04-esmos-project
-      
-      # 3. Inject the passwords directly into the folder
-      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-      
-      # 4. Spin up the containers (Bypassing update_code.sh completely!)
-      sudo docker compose down
-      sudo docker compose up -d
-    readyTimeout: '20000'
+  - task: SSH@0
+    displayName: "Deploy ESMOS via Pipeline"
+    inputs:
+      sshEndpoint: "ssh-odoo17-staging"
+      runOptions: "commands"
+      failOnStdErr: false # This stops Azure from crashing when Docker talks
+      commands: |
+        # 1. Start clean
+        cd /home/G02T04
+        sudo rm -rf e08g02t04-esmos-project
+
+        # 2. Clone fresh
+        git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
+        cd e08g02t04-esmos-project
+
+        # 3. Inject secrets
+        echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+        echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+        echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+
+        # 4. Use -f to point directly to the file to avoid "not found" errors
+        # This assumes the file is in the root of your repo. 
+        sudo docker compose -f docker-compose.yml down --remove-orphans
+        sudo docker compose -f docker-compose.yml up -d
+      readyTimeout: "20000"
