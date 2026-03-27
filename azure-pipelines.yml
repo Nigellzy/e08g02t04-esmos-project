@@ -16,25 +16,23 @@ steps:
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
-      # 1. Define the absolute path to avoid "not found" errors
+      # 1. Define the absolute path
       PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
       
-      # 2. Force a clean start by removing the old directory
-      # We use sudo here because Docker might have created root-owned files
+      # 2. STOP DOCKER FIRST (This releases the file locks)
+      # We ignore errors here in case the folder/containers don't exist yet
+      sudo docker compose -f $PROJECT_DIR/docker-compose.yml down --remove-orphans || true
+      
+      # 3. Now it is safe to delete
       sudo rm -rf $PROJECT_DIR
       
-      # 3. Clone the repo directly into the target directory
+      # 4. Clone fresh
       git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git $PROJECT_DIR
       
-      # 4. Inject secrets into the .env file using the absolute path
-      # Azure DevOps will safely mask these in the logs
+      # 5. Inject secrets
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > $PROJECT_DIR/.env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> $PROJECT_DIR/.env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> $PROJECT_DIR/.env
       
-      # 5. Execute Docker Compose using the explicit file path
-      # 'down' ensures we stop any old "ghost" containers first
-      sudo docker compose -f $PROJECT_DIR/docker-compose.yml down --remove-orphans
-      
-      # 6. Start the containers in detached mode
+      # 6. Start the containers
       sudo docker compose -f $PROJECT_DIR/docker-compose.yml up -d
