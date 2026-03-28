@@ -29,31 +29,31 @@ stages:
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           
-          git -C /home/G02T04/e08g02t04-esmos-project rev-parse --git-dir > /dev/null 2>&1 || git -C /home/G02T04/e08g02t04-esmos-project init -q
-          git -C /home/G02T04/e08g02t04-esmos-project remote remove origin || true
-          git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git -C /home/G02T04/e08g02t04-esmos-project fetch origin staging -q
-          git -C /home/G02T04/e08g02t04-esmos-project reset --hard FETCH_HEAD -q
+          cd /home/G02T04/e08g02t04-esmos-project
+          git rev-parse --git-dir > /dev/null 2>&1 || git init -q
+          git remote remove origin || true
+          git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git fetch origin staging -q
+          git reset --hard FETCH_HEAD -q
 
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_USER=moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
+          echo "MARIADB_USER=moodle" >> .env
 
-          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project/filestore
-          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project/addons
-          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore /home/G02T04/e08g02t04-esmos-project/addons
-          sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
+          sudo mkdir -p filestore addons
+          sudo chown -R 101:101 filestore addons
+          sudo chmod -R 775 .
 
-          cd /home/G02T04/e08g02t04-esmos-project && sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose down --remove-orphans
-          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose up -d
+          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          sudo docker compose down --remove-orphans
+          sudo docker compose up -d
 
           echo "Waiting for databases..."
           sleep 15
-          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose restart web
+          sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          sudo docker compose restart web
 
 # ==========================================
 # STAGE 2: PRODUCTION (Branch: main)
@@ -75,28 +75,28 @@ stages:
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           
-          git -C /home/G02T04/e08g02t04-esmos-project rev-parse --git-dir > /dev/null 2>&1 || git -C /home/G02T04/e08g02t04-esmos-project init -q
-          git -C /home/G02T04/e08g02t04-esmos-project remote remove origin || true
-          git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git -C /home/G02T04/e08g02t04-esmos-project fetch origin main -q
-          git -C /home/G02T04/e08g02t04-esmos-project reset --hard FETCH_HEAD -q
+          cd /home/G02T04/e08g02t04-esmos-project
+          git rev-parse --git-dir > /dev/null 2>&1 || git init -q
+          git remote remove origin || true
+          git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git fetch origin main -q
+          git reset --hard FETCH_HEAD -q
 
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_USER=moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
+          echo "MARIADB_USER=moodle" >> .env
 
-          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project/filestore
-          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project/addons
-          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore /home/G02T04/e08g02t04-esmos-project/addons
-          sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
+          sudo mkdir -p filestore addons
+          sudo chown -R 101:101 filestore addons
+          sudo chmod -R 775 .
 
-          cd /home/G02T04/e08g02t04-esmos-project && sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose down --remove-orphans
-          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose up -d
+          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          sudo docker compose down --remove-orphans
+          sudo docker compose up -d
 
           echo "Waiting for databases..."
           sleep 15
-          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose restart web
+          sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          sudo docker compose restart web
