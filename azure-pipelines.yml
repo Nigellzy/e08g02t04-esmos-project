@@ -26,27 +26,24 @@ stages:
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          # 1. Create Folder if missing & Enter
+          # 1. Force creation and enter directory immediately
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
-          # 2. Hard Reset Code
+          # 2. Isolated Git Reset (Ensures .git is INSIDE the folder)
           [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
           git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
           git fetch origin staging -q
           git reset --hard FETCH_HEAD -q
           
-          # 3. Inject Secrets (Inside project folder)
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
-          echo "MARIADB_USER=moodle" >> .env
+          # 3. Controlled Secret Injection (Explicitly using current directory)
+          printf "POSTGRES_PASSWORD=%s\nMARIADB_PASSWORD=%s\nODOO_ADMIN_PASSWORD=%s\nMARIADB_DATABASE=bitnami_moodle\nMARIADB_USER=moodle\n" \
+          "$(DB_PASSWORD)" "$(MOODLE_DB_PASSWORD)" "$(ODOO_ADMIN_PASSWORD)" > ./.env
           
-          # 4. Create Filestore & Fix Permissions
-          mkdir -p filestore
-          sudo chown -R 101:101 filestore addons
+          # 4. Permission Fixes
+          mkdir -p ./filestore
+          sudo chown -R 101:101 ./filestore ./addons
           sudo chmod -R 775 .
           
           # 5. Build and Deploy
@@ -54,8 +51,8 @@ stages:
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
-          # 6. Automate the Database Upgrade
-          echo "Waiting for databases to initialize..."
+          # 6. Odoo Database Upgrade Only
+          echo "Waiting for databases..."
           sleep 15
           sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
           sudo docker compose restart web
@@ -77,27 +74,24 @@ stages:
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          # 1. Create Folder if missing & Enter
+          # 1. Force creation and enter directory immediately
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
-          # 2. Hard Reset Code
+          # 2. Isolated Git Reset
           [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
           git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git fetch origin staging -q
+          git fetch origin main -q
           git reset --hard FETCH_HEAD -q
           
-          # 3. Inject Secrets (Inside project folder)
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
-          echo "MARIADB_USER=moodle" >> .env
+          # 3. Controlled Secret Injection
+          printf "POSTGRES_PASSWORD=%s\nMARIADB_PASSWORD=%s\nODOO_ADMIN_PASSWORD=%s\nMARIADB_DATABASE=bitnami_moodle\nMARIADB_USER=moodle\n" \
+          "$(DB_PASSWORD)" "$(MOODLE_DB_PASSWORD)" "$(ODOO_ADMIN_PASSWORD)" > ./.env
           
-          # 4. Create Filestore & Fix Permissions
-          mkdir -p filestore
-          sudo chown -R 101:101 filestore addons
+          # 4. Permission Fixes
+          mkdir -p ./filestore
+          sudo chown -R 101:101 ./filestore ./addons
           sudo chmod -R 775 .
           
           # 5. Build and Deploy
@@ -105,8 +99,8 @@ stages:
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
-          # 6. Automate the Database Upgrade
-          echo "Waiting for databases to initialize..."
+          # 6. Odoo Database Upgrade Only
+          echo "Waiting for databases..."
           sleep 15
           sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
           sudo docker compose restart web
