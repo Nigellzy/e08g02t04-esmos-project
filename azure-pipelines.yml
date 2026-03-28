@@ -23,37 +23,71 @@ stages:
       inputs:
         sshEndpoint: "ssh-odoo17-staging"
         runOptions: "commands"
-        failOnStdErr: false
+        failOnStdErr: true
         readyTimeout: "20000"
         commands: |
-          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
-          sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
+          set -e
+          set -u
           
-          cd /home/G02T04/e08g02t04-esmos-project
+          # Define project directory
+          PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
+          
+          # Create and setup project directory
+          echo "[1/8] Setting up project directory: $PROJECT_DIR"
+          sudo mkdir -p "$PROJECT_DIR"
+          sudo chown -R G02T04:G02T04 "$PROJECT_DIR"
+          
+          # Change to project directory and verify
+          echo "[2/8] Entering project directory"
+          cd "$PROJECT_DIR" || { echo "ERROR: Failed to enter project directory"; exit 1; }
+          echo "Current directory: $(pwd)"
+          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
+          
+          # Clone/fetch repository
+          echo "[3/8] Fetching repository"
           git rev-parse --git-dir > /dev/null 2>&1 || git init -q
-          git remote remove origin || true
+          git remote remove origin 2>/dev/null || true
           git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git fetch origin staging -q
-          git reset --hard FETCH_HEAD -q
-
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
-          echo "MARIADB_USER=moodle" >> .env
-
-          sudo mkdir -p filestore addons
+          git fetch origin staging --quiet
+          git reset --hard origin/staging --quiet
+          
+          # Create environment file (NOT with sudo, to avoid permission issues)
+          echo "[4/8] Creating environment file"
+          cat > .env << EOF
+POSTGRES_PASSWORD=$(DB_PASSWORD)
+MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)
+ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+MARIADB_DATABASE=bitnami_moodle
+MARIADB_USER=moodle
+EOF
+          chmod 600 .env
+          
+          # Create runtime directories
+          echo "[5/8] Creating runtime directories"
+          sudo mkdir -p filestore
+          sudo mkdir -p addons
           sudo chown -R 101:101 filestore addons
-          sudo chmod -R 775 .
-
-          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-          sudo docker compose down --remove-orphans
-          sudo docker compose up -d
-
-          echo "Waiting for databases..."
-          sleep 15
-          sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          sudo docker compose restart web
+          sudo chmod -R 775 filestore addons
+          sudo chown -R G02T04:G02T04 .
+          
+          # Verify we're still in correct directory before docker operations
+          echo "[6/8] Verifying directory structure"
+          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
+          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $(pwd)"; exit 1; }
+          
+          # Build and start services
+          echo "[7/8] Building and starting services"
+          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose --file "$PROJECT_DIR/docker-compose.yml" build --build-arg POSTGRES_PASSWORD="$(DB_PASSWORD)" --build-arg ODOO_ADMIN_PASSWORD="$(ODOO_ADMIN_PASSWORD)"
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" down --remove-orphans
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" up -d
+          
+          # Initialize databases
+          echo "[8/8] Initializing databases"
+          sleep 20
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" restart web
+          
+          echo "✓ Deployment completed successfully"
 
 # ==========================================
 # STAGE 2: PRODUCTION (Branch: main)
@@ -69,34 +103,68 @@ stages:
       inputs:
         sshEndpoint: "ssh-odoo17-prod"
         runOptions: "commands"
-        failOnStdErr: false
+        failOnStdErr: true
         readyTimeout: "20000"
         commands: |
-          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
-          sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
+          set -e
+          set -u
           
-          cd /home/G02T04/e08g02t04-esmos-project
+          # Define project directory
+          PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
+          
+          # Create and setup project directory
+          echo "[1/8] Setting up project directory: $PROJECT_DIR"
+          sudo mkdir -p "$PROJECT_DIR"
+          sudo chown -R G02T04:G02T04 "$PROJECT_DIR"
+          
+          # Change to project directory and verify
+          echo "[2/8] Entering project directory"
+          cd "$PROJECT_DIR" || { echo "ERROR: Failed to enter project directory"; exit 1; }
+          echo "Current directory: $(pwd)"
+          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
+          
+          # Clone/fetch repository
+          echo "[3/8] Fetching repository"
           git rev-parse --git-dir > /dev/null 2>&1 || git init -q
-          git remote remove origin || true
+          git remote remove origin 2>/dev/null || true
           git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git fetch origin main -q
-          git reset --hard FETCH_HEAD -q
-
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
-          echo "MARIADB_USER=moodle" >> .env
-
-          sudo mkdir -p filestore addons
+          git fetch origin main --quiet
+          git reset --hard origin/main --quiet
+          
+          # Create environment file (NOT with sudo, to avoid permission issues)
+          echo "[4/8] Creating environment file"
+          cat > .env << EOF
+POSTGRES_PASSWORD=$(DB_PASSWORD)
+MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)
+ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+MARIADB_DATABASE=bitnami_moodle
+MARIADB_USER=moodle
+EOF
+          chmod 600 .env
+          
+          # Create runtime directories
+          echo "[5/8] Creating runtime directories"
+          sudo mkdir -p filestore
+          sudo mkdir -p addons
           sudo chown -R 101:101 filestore addons
-          sudo chmod -R 775 .
-
-          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-          sudo docker compose down --remove-orphans
-          sudo docker compose up -d
-
-          echo "Waiting for databases..."
-          sleep 15
-          sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          sudo docker compose restart web
+          sudo chmod -R 775 filestore addons
+          sudo chown -R G02T04:G02T04 .
+          
+          # Verify we're still in correct directory before docker operations
+          echo "[6/8] Verifying directory structure"
+          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
+          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $(pwd)"; exit 1; }
+          
+          # Build and start services
+          echo "[7/8] Building and starting services"
+          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose --file "$PROJECT_DIR/docker-compose.yml" build --build-arg POSTGRES_PASSWORD="$(DB_PASSWORD)" --build-arg ODOO_ADMIN_PASSWORD="$(ODOO_ADMIN_PASSWORD)"
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" down --remove-orphans
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" up -d
+          
+          # Initialize databases
+          echo "[8/8] Initializing databases"
+          sleep 20
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" restart web
+          
+          echo "✓ Deployment completed successfully"
