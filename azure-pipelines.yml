@@ -44,42 +44,38 @@ stages:
           echo "MARIADB_DATABASE=bitnami_moodle" >> .env
           echo "MARIADB_USER=moodle" >> .env
           
-          # 4. Start Containers
+          # 4. Start Containers safely without BuildKit
           sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
-          # 5. ONE-TIME DATA RESTORATION LOCK (BULLETPROOF)
-          cat << 'EOF' > restore_script.sh
-          if [ ! -f "/home/G02T04/e08g02t04-esmos-project/.data_restored" ]; then
-              echo "-> First run detected. Initiating secure data restore..."
-              sleep 15
-              
-              sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
-              sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
-              sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
-              sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
-              
-              sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 /home/G02T04/odoo_test_backup.dump
-              sudo tar -xzvf ~/all_custom_addons.tar.gz -C ./addons/
-              
-              sudo docker compose stop moodle web
-              sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
-              sudo chown -R 1001:root /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
-              sudo chmod -R 775 /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
-              sudo chown -R 101:101 ./addons ./filestore
-              sudo chmod -R 775 ./addons ./filestore
-              
-              sudo docker compose start moodle web
-              
-              touch "/home/G02T04/e08g02t04-esmos-project/.data_restored"
-              echo "-> Data restoration complete and locked."
-          else
-              echo "-> .data_restored lock file found. Skipping database overwrite."
-          fi
-          EOF
+          # 5. ONE-TIME DATA RESTORATION LOCK (Bypassing Azure Parser Bugs)
+          # If the lock file exists, this line safely ends the deployment successfully.
+          [ -f "/home/G02T04/e08g02t04-esmos-project/.data_restored" ] && echo "-> Lock file found. Skipping data restore to protect live data." && exit 0
           
-          bash restore_script.sh
+          # If the script reaches here, it is a fresh deployment!
+          echo "-> First run detected. Initiating secure data restore..."
+          sleep 15
+          
+          sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
+          sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
+          sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
+          sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
+          
+          sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 /home/G02T04/odoo_test_backup.dump
+          sudo tar -xzvf ~/all_custom_addons.tar.gz -C ./addons/
+          
+          sudo docker compose stop moodle web
+          sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
+          sudo chown -R 1001:root /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+          sudo chmod -R 775 /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+          sudo chown -R 101:101 ./addons ./filestore
+          sudo chmod -R 775 ./addons ./filestore
+          
+          sudo docker compose start moodle web
+          
+          touch "/home/G02T04/e08g02t04-esmos-project/.data_restored"
+          echo "-> Data restoration complete and locked."
 
 # ==========================================
 # STAGE 2: PRODUCTION ENVIRONMENT
@@ -93,7 +89,7 @@ stages:
     - task: SSH@0
       displayName: "Deploy & Restore (Production)"
       inputs:
-        sshEndpoint: "ssh-odoo17-prod"  # Target Prod VM
+        sshEndpoint: "ssh-odoo17-prod"
         runOptions: "commands"
         failOnStdErr: false
         readyTimeout: "20000"
@@ -116,39 +112,33 @@ stages:
           echo "MARIADB_DATABASE=bitnami_moodle" >> .env
           echo "MARIADB_USER=moodle" >> .env
           
-          # 4. Start Containers
+          # 4. Start Containers safely without BuildKit
           sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
-          # 5. ONE-TIME DATA RESTORATION LOCK (BULLETPROOF)
-          cat << 'EOF' > restore_script.sh
-          if [ ! -f "/home/G02T04/e08g02t04-esmos-project/.data_restored" ]; then
-              echo "-> First run detected. Initiating secure data restore..."
-              sleep 15
-              
-              sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
-              sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
-              sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
-              sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
-              
-              sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 /home/G02T04/odoo_test_backup.dump
-              sudo tar -xzvf ~/all_custom_addons.tar.gz -C ./addons/
-              
-              sudo docker compose stop moodle web
-              sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
-              sudo chown -R 1001:root /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
-              sudo chmod -R 775 /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
-              sudo chown -R 101:101 ./addons ./filestore
-              sudo chmod -R 775 ./addons ./filestore
-              
-              sudo docker compose start moodle web
-              
-              touch "/home/G02T04/e08g02t04-esmos-project/.data_restored"
-              echo "-> Data restoration complete and locked."
-          else
-              echo "-> .data_restored lock file found. Skipping database overwrite."
-          fi
-          EOF
+          # 5. ONE-TIME DATA RESTORATION LOCK (Bypassing Azure Parser Bugs)
+          [ -f "/home/G02T04/e08g02t04-esmos-project/.data_restored" ] && echo "-> Lock file found. Skipping data restore to protect live data." && exit 0
           
-          bash restore_script.sh
+          echo "-> First run detected. Initiating secure data restore..."
+          sleep 15
+          
+          sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
+          sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
+          sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
+          sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
+          
+          sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 /home/G02T04/odoo_test_backup.dump
+          sudo tar -xzvf ~/all_custom_addons.tar.gz -C ./addons/
+          
+          sudo docker compose stop moodle web
+          sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
+          sudo chown -R 1001:root /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+          sudo chmod -R 775 /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+          sudo chown -R 101:101 ./addons ./filestore
+          sudo chmod -R 775 ./addons ./filestore
+          
+          sudo docker compose start moodle web
+          
+          touch "/home/G02T04/e08g02t04-esmos-project/.data_restored"
+          echo "-> Data restoration complete and locked."
