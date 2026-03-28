@@ -26,47 +26,34 @@ stages:
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          set -e
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
+          sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
 
-          # Define absolute path to prevent ANY file leakage
-          DIR="/home/G02T04/e08g02t04-esmos-project"
+          if [ ! -d /home/G02T04/e08g02t04-esmos-project/.git ]; then git -C /home/G02T04/e08g02t04-esmos-project init -q; fi
+          git -C /home/G02T04/e08g02t04-esmos-project remote remove origin || true
+          git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git -C /home/G02T04/e08g02t04-esmos-project fetch origin staging -q
+          git -C /home/G02T04/e08g02t04-esmos-project reset --hard FETCH_HEAD -q
 
-          sudo mkdir -p "$DIR"
-          sudo chown -R G02T04:G02T04 "$DIR"
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_USER=moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
 
-          # 1. STRICT GIT PULL
-          if [ ! -d "$DIR/.git" ]; then
-            git -C "$DIR" init -q
-            git -C "$DIR" remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
-          fi
-          git -C "$DIR" remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git -C "$DIR" fetch origin staging -q
-          git -C "$DIR" reset --hard FETCH_HEAD -q
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project/filestore
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project/addons
+          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore /home/G02T04/e08g02t04-esmos-project/addons
+          sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
 
-          # 2. STRICT SECRET INJECTION
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > "$DIR/.env"
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> "$DIR/.env"
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> "$DIR/.env"
-          echo "MARIADB_DATABASE=bitnami_moodle" >> "$DIR/.env"
-          echo "MARIADB_USER=moodle" >> "$DIR/.env"
+          cd /home/G02T04/e08g02t04-esmos-project && sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose down --remove-orphans
+          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose up -d
 
-          # 3. DIRECTORY PERMISSIONS
-          mkdir -p "$DIR/filestore"
-          mkdir -p "$DIR/addons"
-          sudo chown -R 101:101 "$DIR/filestore" "$DIR/addons"
-          sudo chmod -R 775 "$DIR"
-
-          # 4. DOCKER EXECUTION
-          cd "$DIR" || exit 1
-          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-          sudo docker compose down --remove-orphans
-          sudo docker compose up -d
-
-          # 5. DATABASE UPGRADE
           echo "Waiting for databases..."
           sleep 15
-          sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          sudo docker compose restart web
+          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose restart web
 
 # ==========================================
 # STAGE 2: PRODUCTION (Branch: main)
@@ -85,44 +72,31 @@ stages:
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          set -e
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
+          sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
 
-          DIR="/home/G02T04/e08g02t04-esmos-project"
+          if [ ! -d /home/G02T04/e08g02t04-esmos-project/.git ]; then git -C /home/G02T04/e08g02t04-esmos-project init -q; fi
+          git -C /home/G02T04/e08g02t04-esmos-project remote remove origin || true
+          git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git -C /home/G02T04/e08g02t04-esmos-project fetch origin main -q
+          git -C /home/G02T04/e08g02t04-esmos-project reset --hard FETCH_HEAD -q
 
-          sudo mkdir -p "$DIR"
-          sudo chown -R G02T04:G02T04 "$DIR"
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_USER=moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
 
-          # 1. STRICT GIT PULL
-          if [ ! -d "$DIR/.git" ]; then
-            git -C "$DIR" init -q
-            git -C "$DIR" remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
-          fi
-          git -C "$DIR" remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git -C "$DIR" fetch origin main -q
-          git -C "$DIR" reset --hard FETCH_HEAD -q
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project/filestore
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project/addons
+          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore /home/G02T04/e08g02t04-esmos-project/addons
+          sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
 
-          # 2. STRICT SECRET INJECTION
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > "$DIR/.env"
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> "$DIR/.env"
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> "$DIR/.env"
-          echo "MARIADB_DATABASE=bitnami_moodle" >> "$DIR/.env"
-          echo "MARIADB_USER=moodle" >> "$DIR/.env"
+          cd /home/G02T04/e08g02t04-esmos-project && sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose down --remove-orphans
+          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose up -d
 
-          # 3. DIRECTORY PERMISSIONS
-          mkdir -p "$DIR/filestore"
-          mkdir -p "$DIR/addons"
-          sudo chown -R 101:101 "$DIR/filestore" "$DIR/addons"
-          sudo chmod -R 775 "$DIR"
-
-          # 4. DOCKER EXECUTION
-          cd "$DIR" || exit 1
-          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-          sudo docker compose down --remove-orphans
-          sudo docker compose up -d
-
-          # 5. DATABASE UPGRADE
           echo "Waiting for databases..."
           sleep 15
-          sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          sudo docker compose restart web
-
+          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          cd /home/G02T04/e08g02t04-esmos-project && sudo docker compose restart web
