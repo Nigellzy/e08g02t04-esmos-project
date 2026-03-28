@@ -30,7 +30,8 @@ stages:
           set -u
           
           # Define project directory
-          PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
+          PROJECT_DIR="${HOME:-/home/G02T04}/e08g02t04-esmos-project"
+          [ -n "$PROJECT_DIR" ] || { echo "ERROR: PROJECT_DIR is empty"; exit 1; }
           
           # Create and setup project directory
           echo "[1/8] Setting up project directory: $PROJECT_DIR"
@@ -40,8 +41,8 @@ stages:
           # Change to project directory and verify
           echo "[2/8] Entering project directory"
           cd "$PROJECT_DIR" || { echo "ERROR: Failed to enter project directory"; exit 1; }
-          echo "Current directory: $(pwd)"
-          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
+          echo "Current directory: $PWD"
+          if [ "$PWD" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
           
           # Clone/fetch repository
           echo "[3/8] Fetching repository"
@@ -72,8 +73,8 @@ stages:
           
           # Verify we're still in correct directory before docker operations
           echo "[6/8] Verifying directory structure"
-          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
-          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $(pwd)"; exit 1; }
+          if [ "$PWD" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
+          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $PWD"; exit 1; }
           
           # Build and start services
           echo "[7/8] Building and starting services"
@@ -110,7 +111,8 @@ stages:
           set -u
           
           # Define project directory
-          PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
+          PROJECT_DIR="${HOME:-/home/G02T04}/e08g02t04-esmos-project"
+          [ -n "$PROJECT_DIR" ] || { echo "ERROR: PROJECT_DIR is empty"; exit 1; }
           
           # Create and setup project directory
           echo "[1/8] Setting up project directory: $PROJECT_DIR"
@@ -120,8 +122,8 @@ stages:
           # Change to project directory and verify
           echo "[2/8] Entering project directory"
           cd "$PROJECT_DIR" || { echo "ERROR: Failed to enter project directory"; exit 1; }
-          echo "Current directory: $(pwd)"
-          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
+          echo "Current directory: $PWD"
+          if [ "$PWD" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
           
           # Clone/fetch repository
           echo "[3/8] Fetching repository"
@@ -152,8 +154,8 @@ stages:
           
           # Verify we're still in correct directory before docker operations
           echo "[6/8] Verifying directory structure"
-          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
-          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $(pwd)"; exit 1; }
+          if [ "$PWD" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
+          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $PWD"; exit 1; }
           
           # Build and start services
           echo "[7/8] Building and starting services"
