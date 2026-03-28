@@ -26,7 +26,9 @@ stages:
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          # 1. Enter the project folder
+          # 1. Create Folder if missing & Enter
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
+          sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
           # 2. Hard Reset Code
@@ -75,13 +77,15 @@ stages:
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          # 1. Enter the project folder
+          # 1. Create Folder if missing & Enter
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
+          sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
           # 2. Hard Reset Code
           [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
           git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git fetch origin main -q
+          git fetch origin staging -q
           git reset --hard FETCH_HEAD -q
           
           # 3. Inject Secrets (Inside project folder)
