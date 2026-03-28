@@ -16,7 +16,7 @@ RUN echo "[options]" > /etc/odoo/odoo.conf && \
     echo "db_password = ${POSTGRES_PASSWORD}" >> /etc/odoo/odoo.conf && \
     echo "admin_passwd = ${ODOO_ADMIN_PASSWORD}" >> /etc/odoo/odoo.conf
 
-RUN chown -R odoo:odoo /etc/odoo /mnt/extra-addons /var/lib/odoo/filestore
-RUN chmod 755 /etc/odoo /mnt/extra-addons
+RUN chown -R odoo:odoo /etc/odoo /mnt/extra-addons 
+RUN chmod 755 /etc/odoo /mnt/extra-addons /var/lib/odoo/filestore
 
 USER odoo
