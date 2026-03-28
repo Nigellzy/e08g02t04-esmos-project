@@ -8,7 +8,11 @@ pool:
 variables:
 - group: esmos-secrets
 
+# ==========================================
+# Reusable deploy script template
+# ==========================================
 stages:
+
 # ==========================================
 # STAGE 1: STAGING (Branch: staging)
 # ==========================================
@@ -23,72 +27,77 @@ stages:
       inputs:
         sshEndpoint: "ssh-odoo17-staging"
         runOptions: "commands"
-        failOnStdErr: true
+        failOnStdErr: false          # FIX: git and docker write progress to stderr; this would cause false failures
         readyTimeout: "20000"
         commands: |
           set -e
           set -u
-          
-          # Define project directory
-          PROJECT_DIR="${HOME:-/home/G02T04}/e08g02t04-esmos-project"
-          [ -n "$PROJECT_DIR" ] || { echo "ERROR: PROJECT_DIR is empty"; exit 1; }
-          
-          # Create and setup project directory
+
+          PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
+
           echo "[1/8] Setting up project directory: $PROJECT_DIR"
           sudo mkdir -p "$PROJECT_DIR"
           sudo chown -R G02T04:G02T04 "$PROJECT_DIR"
-          
-          # Change to project directory and verify
+
           echo "[2/8] Entering project directory"
           cd "$PROJECT_DIR" || { echo "ERROR: Failed to enter project directory"; exit 1; }
-          echo "Current directory: $PWD"
-          if [ "$PWD" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
-          
-          # Clone/fetch repository
+          echo "Current directory: $(pwd)"
+          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
+
           echo "[3/8] Fetching repository"
           git rev-parse --git-dir > /dev/null 2>&1 || git init -q
           git remote remove origin 2>/dev/null || true
           git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
           git fetch origin staging --quiet
           git reset --hard origin/staging --quiet
-          
-          # Create environment file (NOT with sudo, to avoid permission issues)
+
           echo "[4/8] Creating environment file"
-          cat > .env <<EOF
+          # FIX: heredoc content must start at column 0 — indented lines write leading
+          # whitespace into the file, breaking Docker Compose variable parsing.
+          cat > .env <<'ENVEOF'
           POSTGRES_PASSWORD=$(DB_PASSWORD)
           MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)
           ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           MARIADB_DATABASE=bitnami_moodle
           MARIADB_USER=moodle
-          EOF
+          ENVEOF
+          # Rewrite without leading whitespace (Azure SSH task strips heredoc indentation inconsistently)
+          sed -i 's/^[[:space:]]*//' .env
           chmod 600 .env
-          
-          # Create runtime directories
+
           echo "[5/8] Creating runtime directories"
-          sudo mkdir -p filestore
-          sudo mkdir -p addons
+          sudo mkdir -p filestore addons
           sudo chown -R 101:101 filestore addons
           sudo chmod -R 775 filestore addons
           sudo chown -R G02T04:G02T04 .
-          
-          # Verify we're still in correct directory before docker operations
+
           echo "[6/8] Verifying directory structure"
-          if [ "$PWD" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
-          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $PWD"; exit 1; }
-          
-          # Build and start services
+          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
+          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $(pwd)"; exit 1; }
+
           echo "[7/8] Building and starting services"
-          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose --file "$PROJECT_DIR/docker-compose.yml" build --build-arg POSTGRES_PASSWORD="$(DB_PASSWORD)" --build-arg ODOO_ADMIN_PASSWORD="$(ODOO_ADMIN_PASSWORD)"
+          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 \
+            docker compose --file "$PROJECT_DIR/docker-compose.yml" build \
+            --build-arg POSTGRES_PASSWORD="$(DB_PASSWORD)" \
+            --build-arg ODOO_ADMIN_PASSWORD="$(ODOO_ADMIN_PASSWORD)"
           sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" down --remove-orphans
           sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" up -d
-          
-          # Initialize databases
+
           echo "[8/8] Initializing databases"
-          sleep 20
-          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          # FIX: wait for DB to be healthy instead of a blind sleep
+          echo "Waiting for database to be ready..."
+          for i in $(seq 1 30); do
+            sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" exec -T db \
+              pg_isready -U odoo > /dev/null 2>&1 && break
+            echo "  attempt $i/30 — db not ready yet, waiting 5s..."
+            sleep 5
+          done
+          # FIX: use your actual Odoo DB name, not 'postgres' (the system db)
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" \
+            exec -T -u odoo web odoo -u all -d odoo --stop-after-init
           sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" restart web
-          
-          echo "✓ Deployment completed successfully"
+
+          echo "✓ Staging deployment completed successfully"
 
 # ==========================================
 # STAGE 2: PRODUCTION (Branch: main)
@@ -104,69 +113,69 @@ stages:
       inputs:
         sshEndpoint: "ssh-odoo17-prod"
         runOptions: "commands"
-        failOnStdErr: true
+        failOnStdErr: false          # FIX: same as staging
         readyTimeout: "20000"
         commands: |
           set -e
           set -u
-          
-          # Define project directory
-          PROJECT_DIR="${HOME:-/home/G02T04}/e08g02t04-esmos-project"
-          [ -n "$PROJECT_DIR" ] || { echo "ERROR: PROJECT_DIR is empty"; exit 1; }
-          
-          # Create and setup project directory
+
+          PROJECT_DIR="/home/G02T04/e08g02t04-esmos-project"
+
           echo "[1/8] Setting up project directory: $PROJECT_DIR"
           sudo mkdir -p "$PROJECT_DIR"
           sudo chown -R G02T04:G02T04 "$PROJECT_DIR"
-          
-          # Change to project directory and verify
+
           echo "[2/8] Entering project directory"
           cd "$PROJECT_DIR" || { echo "ERROR: Failed to enter project directory"; exit 1; }
-          echo "Current directory: $PWD"
-          if [ "$PWD" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
-          
-          # Clone/fetch repository
+          echo "Current directory: $(pwd)"
+          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Directory mismatch"; exit 1; fi
+
           echo "[3/8] Fetching repository"
           git rev-parse --git-dir > /dev/null 2>&1 || git init -q
           git remote remove origin 2>/dev/null || true
           git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
           git fetch origin main --quiet
           git reset --hard origin/main --quiet
-          
-          # Create environment file (NOT with sudo, to avoid permission issues)
+
           echo "[4/8] Creating environment file"
-          cat > .env <<EOF
+          cat > .env <<'ENVEOF'
           POSTGRES_PASSWORD=$(DB_PASSWORD)
           MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)
           ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           MARIADB_DATABASE=bitnami_moodle
           MARIADB_USER=moodle
-          EOF
+          ENVEOF
+          sed -i 's/^[[:space:]]*//' .env
           chmod 600 .env
-          
-          # Create runtime directories
+
           echo "[5/8] Creating runtime directories"
-          sudo mkdir -p filestore
-          sudo mkdir -p addons
+          sudo mkdir -p filestore addons
           sudo chown -R 101:101 filestore addons
           sudo chmod -R 775 filestore addons
           sudo chown -R G02T04:G02T04 .
-          
-          # Verify we're still in correct directory before docker operations
+
           echo "[6/8] Verifying directory structure"
-          if [ "$PWD" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
-          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $PWD"; exit 1; }
-          
-          # Build and start services
+          if [ "$(pwd)" != "$PROJECT_DIR" ]; then echo "ERROR: Working directory changed unexpectedly"; exit 1; fi
+          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml not found in $(pwd)"; exit 1; }
+
           echo "[7/8] Building and starting services"
-          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose --file "$PROJECT_DIR/docker-compose.yml" build --build-arg POSTGRES_PASSWORD="$(DB_PASSWORD)" --build-arg ODOO_ADMIN_PASSWORD="$(ODOO_ADMIN_PASSWORD)"
+          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 \
+            docker compose --file "$PROJECT_DIR/docker-compose.yml" build \
+            --build-arg POSTGRES_PASSWORD="$(DB_PASSWORD)" \
+            --build-arg ODOO_ADMIN_PASSWORD="$(ODOO_ADMIN_PASSWORD)"
           sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" down --remove-orphans
           sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" up -d
-          
-          # Initialize databases
+
           echo "[8/8] Initializing databases"
-          sleep 20
-          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          echo "Waiting for database to be ready..."
+          for i in $(seq 1 30); do
+            sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" exec -T db \
+              pg_isready -U odoo > /dev/null 2>&1 && break
+            echo "  attempt $i/30 — db not ready yet, waiting 5s..."
+            sleep 5
+          done
+          sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" \
+            exec -T -u odoo web odoo -u all -d odoo --stop-after-init
           sudo docker compose --file "$PROJECT_DIR/docker-compose.yml" restart web
-          
-          echo "✓ Deployment completed successfully"
+
+          echo "✓ Production deployment completed successfully"
