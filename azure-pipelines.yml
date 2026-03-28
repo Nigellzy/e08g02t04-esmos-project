@@ -93,7 +93,7 @@ stages:
     - task: SSH@0
       displayName: "Deploy & Restore (Production)"
       inputs:
-        sshEndpoint: "ssh-odoo18-prod"  # Target Prod VM
+        sshEndpoint: "ssh-odoo17-prod"  # Target Prod VM
         runOptions: "commands"
         failOnStdErr: false
         readyTimeout: "20000"
