@@ -26,36 +26,42 @@ stages:
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
+          set -e
+
           # Define absolute path to prevent ANY file leakage
           DIR="/home/G02T04/e08g02t04-esmos-project"
-          
-          sudo mkdir -p $DIR
-          sudo chown -R G02T04:G02T04 $DIR
-          
-          # 1. STRICT GIT PULL (Restored your original -C method)
-          [ ! -d "$DIR/.git" ] && git -C $DIR init -q && git -C $DIR remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
-          git -C $DIR remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git -C $DIR fetch origin staging -q
-          git -C $DIR reset --hard FETCH_HEAD -q
-          
-          # 2. STRICT SECRET INJECTION (Absolute path forces it inside)
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > $DIR/.env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> $DIR/.env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> $DIR/.env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> $DIR/.env
-          echo "MARIADB_USER=moodle" >> $DIR/.env
-          
+
+          sudo mkdir -p "$DIR"
+          sudo chown -R G02T04:G02T04 "$DIR"
+
+          # 1. STRICT GIT PULL
+          if [ ! -d "$DIR/.git" ]; then
+            git -C "$DIR" init -q
+            git -C "$DIR" remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
+          fi
+          git -C "$DIR" remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git -C "$DIR" fetch origin staging -q
+          git -C "$DIR" reset --hard FETCH_HEAD -q
+
+          # 2. STRICT SECRET INJECTION
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > "$DIR/.env"
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> "$DIR/.env"
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> "$DIR/.env"
+          echo "MARIADB_DATABASE=bitnami_moodle" >> "$DIR/.env"
+          echo "MARIADB_USER=moodle" >> "$DIR/.env"
+
           # 3. DIRECTORY PERMISSIONS
-          mkdir -p $DIR/filestore
-          sudo chown -R 101:101 $DIR/filestore $DIR/addons
-          sudo chmod -R 775 $DIR
-          
+          mkdir -p "$DIR/filestore"
+          mkdir -p "$DIR/addons"
+          sudo chown -R 101:101 "$DIR/filestore" "$DIR/addons"
+          sudo chmod -R 775 "$DIR"
+
           # 4. DOCKER EXECUTION
-          cd $DIR || exit 1
+          cd "$DIR" || exit 1
           sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
-          
+
           # 5. DATABASE UPGRADE
           echo "Waiting for databases..."
           sleep 15
@@ -79,37 +85,44 @@ stages:
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
+          set -e
+
           DIR="/home/G02T04/e08g02t04-esmos-project"
-          
-          sudo mkdir -p $DIR
-          sudo chown -R G02T04:G02T04 $DIR
-          
+
+          sudo mkdir -p "$DIR"
+          sudo chown -R G02T04:G02T04 "$DIR"
+
           # 1. STRICT GIT PULL
-          [ ! -d "$DIR/.git" ] && git -C $DIR init -q && git -C $DIR remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
-          git -C $DIR remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git -C $DIR fetch origin main -q
-          git -C $DIR reset --hard FETCH_HEAD -q
-          
+          if [ ! -d "$DIR/.git" ]; then
+            git -C "$DIR" init -q
+            git -C "$DIR" remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
+          fi
+          git -C "$DIR" remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git -C "$DIR" fetch origin main -q
+          git -C "$DIR" reset --hard FETCH_HEAD -q
+
           # 2. STRICT SECRET INJECTION
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > $DIR/.env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> $DIR/.env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> $DIR/.env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> $DIR/.env
-          echo "MARIADB_USER=moodle" >> $DIR/.env
-          
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > "$DIR/.env"
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> "$DIR/.env"
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> "$DIR/.env"
+          echo "MARIADB_DATABASE=bitnami_moodle" >> "$DIR/.env"
+          echo "MARIADB_USER=moodle" >> "$DIR/.env"
+
           # 3. DIRECTORY PERMISSIONS
-          mkdir -p $DIR/filestore
-          sudo chown -R 101:101 $DIR/filestore $DIR/addons
-          sudo chmod -R 775 $DIR
-          
+          mkdir -p "$DIR/filestore"
+          mkdir -p "$DIR/addons"
+          sudo chown -R 101:101 "$DIR/filestore" "$DIR/addons"
+          sudo chmod -R 775 "$DIR"
+
           # 4. DOCKER EXECUTION
-          cd $DIR || exit 1
+          cd "$DIR" || exit 1
           sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
-          
+
           # 5. DATABASE UPGRADE
           echo "Waiting for databases..."
           sleep 15
           sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
           sudo docker compose restart web
+
