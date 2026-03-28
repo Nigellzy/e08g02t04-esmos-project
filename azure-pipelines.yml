@@ -45,7 +45,7 @@ stages:
           echo "MARIADB_USER=moodle" >> .env
           
           # 4. Start Containers
-          sudo docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
@@ -117,7 +117,7 @@ stages:
           echo "MARIADB_USER=moodle" >> .env
           
           # 4. Start Containers
-          sudo docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
