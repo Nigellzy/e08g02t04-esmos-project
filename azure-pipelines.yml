@@ -52,7 +52,7 @@ stages:
           # 5. ONE-TIME DATA RESTORATION LOCK
           if [ ! -f "/home/G02T04/e08g02t04-esmos-project/.data_restored" ]; then
               echo "-> First run detected. Initiating secure data restore..."
-              sleep 15 # Wait for DBs to accept connections
+              sleep 15
               
               # Moodle Restore
               sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
@@ -60,7 +60,7 @@ stages:
               sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
               sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
               
-              # Odoo Restore (assuming backups are in home dir)
+              # Odoo Restore
               sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 /home/G02T04/odoo_test_backup.dump
               sudo tar -xzvf ~/all_custom_addons.tar.gz -C ./addons/
               
@@ -80,7 +80,7 @@ stages:
           else
               echo "-> .data_restored lock file found. Skipping database overwrite to protect live data."
           fi
-
+          
 # ==========================================
 # STAGE 2: PRODUCTION ENVIRONMENT
 # ==========================================
@@ -121,20 +121,22 @@ stages:
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
-          # 5. ONE-TIME DATA RESTORATION LOCK (Production)
+          # 5. ONE-TIME DATA RESTORATION LOCK
           if [ ! -f "/home/G02T04/e08g02t04-esmos-project/.data_restored" ]; then
               echo "-> First run detected. Initiating secure data restore..."
               sleep 15
               
-              # Ensure you have moved these backup files to the Production VM's home folder beforehand!
+              # Moodle Restore
               sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
               sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
               sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
               sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
               
-              sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 ~/odoo_test_backup.dump
+              # Odoo Restore
+              sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 /home/G02T04/odoo_test_backup.dump
               sudo tar -xzvf ~/all_custom_addons.tar.gz -C ./addons/
               
+              # Secure Permissions Fix
               sudo docker compose stop moodle web
               sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
               sudo chown -R 1001:root /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
@@ -144,6 +146,7 @@ stages:
               
               sudo docker compose start moodle web
               
+              # Create Lock File
               touch "/home/G02T04/e08g02t04-esmos-project/.data_restored"
               echo "-> Data restoration complete and locked."
           else
