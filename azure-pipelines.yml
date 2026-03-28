@@ -1,6 +1,6 @@
 trigger:
-- main
-- staging   
+- staging
+- main  
 
 pool:
   name: "Default"
@@ -23,8 +23,9 @@ steps:
     readyTimeout: "20000"
     commands: |
       echo "Deploying STAGING..."
+      echo "Branch: $(Build.SourceBranchName)"
 
-      # 1. Setup Environment & Reclaim Ownership
+      # 1. Setup Environment
       sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
       sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
       cd /home/G02T04/e08g02t04-esmos-project || exit 1
@@ -48,7 +49,7 @@ steps:
       sudo chown -R 101:101 addons
       sudo chmod -R 775 .
       
-      # 5. Deploy
+      # 5. Build and Deploy
       sudo docker compose -f docker-compose.yml build \
         --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) \
         --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
@@ -57,6 +58,7 @@ steps:
       sudo docker compose -f docker-compose.yml up -d
       
       # 6. Upgrade DB
+      echo "Waiting for databases to initialize..."
       sleep 15
       sudo docker compose -f docker-compose.yml exec -T -u odoo web odoo -u all -d postgres --stop-after-init
       sudo docker compose -f docker-compose.yml restart web
@@ -69,37 +71,42 @@ steps:
   displayName: "Deploy ESMOS to PRODUCTION"
   condition: and(
     eq(variables['Build.SourceBranchName'], 'main'),
-    ne(variables['Build.Reason'], 'PullRequest')  
+    ne(variables['Build.Reason'], 'PullRequest')   
   )
   inputs:
-    sshEndpoint: "ssh-odoo17-prod"   # ⚠️ different VM
+    sshEndpoint: "ssh-odoo17-prod"  
     runOptions: "commands"
     failOnStdErr: false
     readyTimeout: "20000"
     commands: |
       echo "Deploying PRODUCTION..."
+      echo "Branch: $(Build.SourceBranchName)"
 
-      # SAME SCRIPT (only change = branch)
+      # 1. Setup Environment
       sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
       sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
       cd /home/G02T04/e08g02t04-esmos-project || exit 1
       
+      # 2. Hard Reset Code
       [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
       git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
       git fetch origin main -q
       git reset --hard FETCH_HEAD -q
       
+      # 3. Inject Secrets (consider separate prod secrets later)
       echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
       echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
       echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
       echo "MARIADB_DATABASE=bitnami_moodle" >> .env
       echo "MARIADB_USER=moodle" >> .env
       
+      # 4. Permissions
       mkdir -p filestore
       sudo chown -R 101:101 filestore
       sudo chown -R 101:101 addons
       sudo chmod -R 775 .
       
+      # 5. Build and Deploy
       sudo docker compose -f docker-compose.yml build \
         --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) \
         --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
@@ -107,6 +114,8 @@ steps:
       sudo docker compose -f docker-compose.yml down --remove-orphans
       sudo docker compose -f docker-compose.yml up -d
       
+      # 6. Upgrade DB
+      echo "Waiting for databases to initialize..."
       sleep 15
       sudo docker compose -f docker-compose.yml exec -T -u odoo web odoo -u all -d postgres --stop-after-init
       sudo docker compose -f docker-compose.yml restart web
