@@ -11,7 +11,7 @@ variables:
 stages:
 
 # ==========================================
-# STAGE 1: DEPLOY TO STAGING
+# STAGE 1: STAGING (ssh-odoo17-staging)
 # ==========================================
 - stage: DeployStaging
   displayName: "Deploy to Staging VM"
@@ -20,49 +20,60 @@ stages:
   - job: StagingJob
     steps:
     - task: SSH@0
-      displayName: "Deploy ESMOS (Staging)"
+      displayName: "Deploy & Restore (Staging)"
       inputs:
         sshEndpoint: "ssh-odoo17-staging"
         runOptions: "commands"
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          # 1. Setup Environment & Reclaim Ownership
+          # 1. Setup & Code Pull
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
-          # 2. Hard Reset Code
           [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
           git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
           git fetch origin staging -q
           git reset --hard FETCH_HEAD -q
           
-          # 3. Inject Secrets Securely
+          # 2. Inject Secrets
           echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
           echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
           echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
           echo "MARIADB_DATABASE=bitnami_moodle" >> .env
           echo "MARIADB_USER=moodle" >> .env
           
-          # 4. Create Filestore & Fix Permissions
-          mkdir -p filestore
-          sudo chown -R 101:101 filestore addons
-          sudo chmod -R 775 .
-          
-          # 5. Build and Deploy (Bypass BuildKit for stability)
+          # 3. Build & Deploy
           sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
-          # 6. Automate the Database Upgrade
-          echo "Waiting for databases to initialize..."
+          # 4. Data Restoration Lock (One-Liner Bypass)
+          [ -f ".data_restored" ] && echo "-> Already restored. Skipping." && exit 0
+          
+          echo "-> Initiating First-Time Restore..."
           sleep 15
-          sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          sudo docker compose restart web
+          
+          # Moodle SQL & Data
+          sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
+          sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
+          sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
+          sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
+          
+          # Odoo Database
+          sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 ~/odoo_test_backup.dump
+          
+          # Fix Permissions & Cache
+          sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
+          sudo chown -R 1001:1001 /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+          sudo docker compose restart moodle
+          
+          touch .data_restored
+          echo "-> Restoration Complete."
 
 # ==========================================
-# STAGE 2: DEPLOY TO PRODUCTION
+# STAGE 2: PRODUCTION (ssh-odoo17-prod)
 # ==========================================
 - stage: DeployProduction
   displayName: "Deploy to Production VM"
@@ -71,43 +82,54 @@ stages:
   - job: ProductionJob
     steps:
     - task: SSH@0
-      displayName: "Deploy ESMOS (Production)"
+      displayName: "Deploy & Restore (Production)"
       inputs:
         sshEndpoint: "ssh-odoo17-prod"
         runOptions: "commands"
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          # 1. Setup Environment & Reclaim Ownership
+          # 1. Setup & Code Pull
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
-          # 2. Hard Reset Code
           [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
           git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
           git fetch origin main -q
           git reset --hard FETCH_HEAD -q
           
-          # 3. Inject Secrets Securely
+          # 2. Inject Secrets
           echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
           echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
           echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
           echo "MARIADB_DATABASE=bitnami_moodle" >> .env
           echo "MARIADB_USER=moodle" >> .env
           
-          # 4. Create Filestore & Fix Permissions
-          mkdir -p filestore
-          sudo chown -R 101:101 filestore addons
-          sudo chmod -R 775 .
-          
-          # 5. Build and Deploy
+          # 3. Build & Deploy
           sudo DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
           sudo docker compose down --remove-orphans
           sudo docker compose up -d
           
-          # 6. Automate the Database Upgrade
-          echo "Waiting for databases to initialize..."
+          # 4. Data Restoration Lock (One-Liner Bypass)
+          [ -f ".data_restored" ] && echo "-> Already restored. Skipping." && exit 0
+          
+          echo "-> Initiating First-Time Restore..."
           sleep 15
-          sudo docker compose exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          sudo docker compose restart web
+          
+          # Moodle SQL & Data
+          sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
+          sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
+          sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
+          sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
+          
+          # Odoo Database
+          sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 ~/odoo_test_backup.dump
+          
+          # Fix Permissions & Cache
+          sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
+          sudo chown -R 1001:1001 /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+          sudo docker compose restart moodle
+          
+          touch .data_restored
+          echo "-> Restoration Complete."
