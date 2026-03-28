@@ -29,7 +29,10 @@ stages:
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
 
-          if [ ! -d /home/G02T04/e08g02t04-esmos-project/.git ]; then git -C /home/G02T04/e08g02t04-esmos-project init -q; fi
+          if [ ! -d /home/G02T04/e08g02t04-esmos-project/.git ]
+          then 
+            git -C /home/G02T04/e08g02t04-esmos-project init -q
+          fi
           git -C /home/G02T04/e08g02t04-esmos-project remote remove origin || true
           git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
           git -C /home/G02T04/e08g02t04-esmos-project fetch origin staging -q
@@ -74,8 +77,11 @@ stages:
         commands: |
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
-
-          if [ ! -d /home/G02T04/e08g02t04-esmos-project/.git ]; then git -C /home/G02T04/e08g02t04-esmos-project init -q; fi
+          
+          if [ ! -d /home/G02T04/e08g02t04-esmos-project/.git ]
+          then 
+            git -C /home/G02T04/e08g02t04-esmos-project init -q
+          fi
           git -C /home/G02T04/e08g02t04-esmos-project remote remove origin || true
           git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
           git -C /home/G02T04/e08g02t04-esmos-project fetch origin main -q
