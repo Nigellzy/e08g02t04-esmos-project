@@ -19,48 +19,67 @@ stages:
   - job: StagingDeployment
     steps:
     - task: SSH@0
-      displayName: "Deploy ESMOS via Pipeline (Staging)"
+      displayName: "Deploy & Restore (Staging)"
       inputs:
         sshEndpoint: "ssh-odoo17-staging"
         runOptions: "commands"
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          # 1. Setup Environment & Reclaim Ownership
+          # 1. Base Setup
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
-          # 2. Hard Reset Code (Bulletproofed with explicit path)
-          [ ! -d "/home/G02T04/e08g02t04-esmos-project/.git" ] && git -C /home/G02T04/e08g02t04-esmos-project init -q && git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
-          git -C /home/G02T04/e08g02t04-esmos-project remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git -C /home/G02T04/e08g02t04-esmos-project fetch origin $(Build.SourceBranch) -q
-          git -C /home/G02T04/e08g02t04-esmos-project reset --hard FETCH_HEAD -q
+          # 2. Git Pull Code
+          [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
+          git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git fetch origin $(Build.SourceBranch) -q
+          git reset --hard FETCH_HEAD -q
           
-          # 3. Inject Secrets Securely
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_USER=moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+          # 3. Inject Secrets
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
+          echo "MARIADB_USER=moodle" >> .env
           
-          # 4. Create Filestore & Fix Permissions
-          mkdir -p /home/G02T04/e08g02t04-esmos-project/filestore
-          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore
-          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/addons
-          sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
+          # 4. Start Containers
+          sudo docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          sudo docker compose down --remove-orphans
+          sudo docker compose up -d
           
-          # 5. Build and Deploy
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml down --remove-orphans
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml up -d
-          
-          # 6. Automate the Database Upgrade
-          echo "Waiting for databases to initialize..."
-          sleep 15
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml restart web
-
+          # 5. ONE-TIME DATA RESTORATION LOCK
+          if [ ! -f "/home/G02T04/e08g02t04-esmos-project/.data_restored" ]; then
+              echo "-> First run detected. Initiating secure data restore..."
+              sleep 15 # Wait for DBs to accept connections
+              
+              # Moodle Restore
+              sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
+              sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
+              sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
+              sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
+              
+              # Odoo Restore (assuming backups are in home dir)
+              sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 /home/G02T04/odoo_test_backup.dump
+              sudo tar -xzvf ~/all_custom_addons.tar.gz -C ./addons/
+              
+              # Secure Permissions Fix
+              sudo docker compose stop moodle web
+              sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
+              sudo chown -R 1001:root /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+              sudo chmod -R 775 /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+              sudo chown -R 101:101 ./addons ./filestore
+              sudo chmod -R 775 ./addons ./filestore
+              
+              sudo docker compose start moodle web
+              
+              # Create Lock File
+              touch "/home/G02T04/e08g02t04-esmos-project/.data_restored"
+              echo "-> Data restoration complete and locked."
+          else
+              echo "-> .data_restored lock file found. Skipping database overwrite to protect live data."
+          fi
 
 # ==========================================
 # STAGE 2: PRODUCTION ENVIRONMENT
@@ -72,44 +91,61 @@ stages:
   - job: ProductionDeployment
     steps:
     - task: SSH@0
-      displayName: "Deploy ESMOS via Pipeline (Production)"
+      displayName: "Deploy & Restore (Production)"
       inputs:
-        sshEndpoint: "ssh-odoo17-prod"  # Ensure this Service Connection exists in Azure DevOps
+        sshEndpoint: "ssh-odoo18-prod"  # Target Prod VM
         runOptions: "commands"
         failOnStdErr: false
         readyTimeout: "20000"
         commands: |
-          # 1. Setup Environment & Reclaim Ownership
+          # 1. Base Setup
           sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
-          # 2. Hard Reset Code (Bulletproofed with explicit path)
-          [ ! -d "/home/G02T04/e08g02t04-esmos-project/.git" ] && git -C /home/G02T04/e08g02t04-esmos-project init -q && git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
-          git -C /home/G02T04/e08g02t04-esmos-project remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
-          git -C /home/G02T04/e08g02t04-esmos-project fetch origin $(Build.SourceBranch) -q
-          git -C /home/G02T04/e08g02t04-esmos-project reset --hard FETCH_HEAD -q
+          # 2. Git Pull Code
+          [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
+          git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git fetch origin $(Build.SourceBranch) -q
+          git reset --hard FETCH_HEAD -q
           
-          # 3. Inject Secrets Securely
-          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_DATABASE=bitnami_moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
-          echo "MARIADB_USER=moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+          # 3. Inject Secrets
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
+          echo "MARIADB_USER=moodle" >> .env
           
-          # 4. Create Filestore & Fix Permissions
-          mkdir -p /home/G02T04/e08g02t04-esmos-project/filestore
-          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore
-          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/addons
-          sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
+          # 4. Start Containers
+          sudo docker compose build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          sudo docker compose down --remove-orphans
+          sudo docker compose up -d
           
-          # 5. Build and Deploy
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml down --remove-orphans
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml up -d
-          
-          # 6. Automate the Database Upgrade
-          echo "Waiting for databases to initialize..."
-          sleep 15
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml exec -T -u odoo web odoo -u all -d postgres --stop-after-init
-          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml restart web
+          # 5. ONE-TIME DATA RESTORATION LOCK (Production)
+          if [ ! -f "/home/G02T04/e08g02t04-esmos-project/.data_restored" ]; then
+              echo "-> First run detected. Initiating secure data restore..."
+              sleep 15
+              
+              # Ensure you have moved these backup files to the Production VM's home folder beforehand!
+              sudo docker cp ~/moodle_test_backup.sql $(sudo docker compose ps -q moodle-db):/tmp/backup.sql
+              sudo docker compose exec -T moodle-db bash -c 'mariadb -u "$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" < /tmp/backup.sql'
+              sudo docker cp ~/moodledata.tar $(sudo docker compose ps -q moodle):/tmp/backup.tar
+              sudo docker compose exec -T moodle bash -c 'tar -xf /tmp/backup.tar -C /bitnami/moodledata/ --strip-components=1'
+              
+              sudo docker compose exec -T -e PGPASSWORD=odoo db pg_restore -U odoo -d postgres -1 ~/odoo_test_backup.dump
+              sudo tar -xzvf ~/all_custom_addons.tar.gz -C ./addons/
+              
+              sudo docker compose stop moodle web
+              sudo rm -rf /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data/cache/*
+              sudo chown -R 1001:root /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+              sudo chmod -R 775 /var/lib/docker/volumes/e08g02t04-esmos-project_moodle-moodledata/_data
+              sudo chown -R 101:101 ./addons ./filestore
+              sudo chmod -R 775 ./addons ./filestore
+              
+              sudo docker compose start moodle web
+              
+              touch "/home/G02T04/e08g02t04-esmos-project/.data_restored"
+              echo "-> Data restoration complete and locked."
+          else
+              echo "-> .data_restored lock file found. Skipping database overwrite to protect live data."
+          fi
