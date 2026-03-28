@@ -31,15 +31,18 @@ stages:
           sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
           cd /home/G02T04/e08g02t04-esmos-project || exit 1
           
-          # 2. Isolated Git Reset (Ensures .git is INSIDE the folder)
+          # 2. Isolated Git Reset
           [ ! -d ".git" ] && git init -q && git remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
           git remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
           git fetch origin staging -q
           git reset --hard FETCH_HEAD -q
           
-          # 3. Controlled Secret Injection (Explicitly using current directory)
-          printf "POSTGRES_PASSWORD=%s\nMARIADB_PASSWORD=%s\nODOO_ADMIN_PASSWORD=%s\nMARIADB_DATABASE=bitnami_moodle\nMARIADB_USER=moodle\n" \
-          "$(DB_PASSWORD)" "$(MOODLE_DB_PASSWORD)" "$(ODOO_ADMIN_PASSWORD)" > ./.env
+          # 3. Inject Secrets (Rock-solid single lines)
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
+          echo "MARIADB_USER=moodle" >> .env
           
           # 4. Permission Fixes
           mkdir -p ./filestore
@@ -85,9 +88,12 @@ stages:
           git fetch origin main -q
           git reset --hard FETCH_HEAD -q
           
-          # 3. Controlled Secret Injection
-          printf "POSTGRES_PASSWORD=%s\nMARIADB_PASSWORD=%s\nODOO_ADMIN_PASSWORD=%s\nMARIADB_DATABASE=bitnami_moodle\nMARIADB_USER=moodle\n" \
-          "$(DB_PASSWORD)" "$(MOODLE_DB_PASSWORD)" "$(ODOO_ADMIN_PASSWORD)" > ./.env
+          # 3. Inject Secrets (Rock-solid single lines)
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> .env
+          echo "MARIADB_USER=moodle" >> .env
           
           # 4. Permission Fixes
           mkdir -p ./filestore
