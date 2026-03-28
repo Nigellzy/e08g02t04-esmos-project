@@ -53,13 +53,13 @@ stages:
           
           # Create environment file (NOT with sudo, to avoid permission issues)
           echo "[4/8] Creating environment file"
-          cat > .env << EOF
-POSTGRES_PASSWORD=$(DB_PASSWORD)
-MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)
-ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-MARIADB_DATABASE=bitnami_moodle
-MARIADB_USER=moodle
-EOF
+          cat > .env <<EOF
+          POSTGRES_PASSWORD=$(DB_PASSWORD)
+          MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)
+          ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          MARIADB_DATABASE=bitnami_moodle
+          MARIADB_USER=moodle
+          EOF
           chmod 600 .env
           
           # Create runtime directories
@@ -133,13 +133,13 @@ EOF
           
           # Create environment file (NOT with sudo, to avoid permission issues)
           echo "[4/8] Creating environment file"
-          cat > .env << EOF
-POSTGRES_PASSWORD=$(DB_PASSWORD)
-MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)
-ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
-MARIADB_DATABASE=bitnami_moodle
-MARIADB_USER=moodle
-EOF
+          cat > .env <<EOF
+          POSTGRES_PASSWORD=$(DB_PASSWORD)
+          MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)
+          ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          MARIADB_DATABASE=bitnami_moodle
+          MARIADB_USER=moodle
+          EOF
           chmod 600 .env
           
           # Create runtime directories
