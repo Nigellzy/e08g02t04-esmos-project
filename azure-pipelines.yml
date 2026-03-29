@@ -2,12 +2,12 @@ trigger:
   branches:
     include:
     - staging
-    - master
+    - main
 
 pr:
   branches:
     include:
-    - master
+    - main
 
 pool:
   name: "Default"
@@ -68,7 +68,7 @@ stages:
 
 - stage: Deploy_Production
   displayName: "Deploy to Production"
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'), ne(variables['Build.Reason'], 'PullRequest'))
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), ne(variables['Build.Reason'], 'PullRequest'))
   jobs:
   - job: DeployProduction
     displayName: "Deploy ESMOS to Production"
