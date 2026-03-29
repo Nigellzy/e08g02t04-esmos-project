@@ -18,6 +18,7 @@ variables:
 stages:
 - stage: Deploy_Staging
   displayName: "Deploy to Staging"
+  dependsOn: []
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/staging'), ne(variables['Build.Reason'], 'PullRequest'))
   jobs:
   - job: DeployStaging
@@ -68,6 +69,7 @@ stages:
 
 - stage: Deploy_Production
   displayName: "Deploy to Production"
+  dependsOn: []
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), ne(variables['Build.Reason'], 'PullRequest'))
   jobs:
   - job: DeployProduction
