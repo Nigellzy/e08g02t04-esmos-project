@@ -1,54 +1,117 @@
 trigger:
-- main
+  branches:
+    include:
+    - staging
+    - master
+
+pr:
+  branches:
+    include:
+    - master
 
 pool:
-  name: 'Default'
+  name: "Default"
 
 variables:
 - group: esmos-secrets
 
-steps:
-- task: SSH@0
-  displayName: 'Inject Secrets and Deploy to Staging'
-  inputs:
-    sshEndpoint: 'ssh-odoo17-staging'
-    runOptions: 'commands'
-    failOnStdErr: false 
-    trigger:
-- main
+stages:
+- stage: Deploy_Staging
+  displayName: "Deploy to Staging"
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/staging'), ne(variables['Build.Reason'], 'PullRequest'))
+  jobs:
+  - job: DeployStaging
+    displayName: "Deploy ESMOS to Staging"
+    steps:
+    - task: SSH@0
+      displayName: "Run staging deploy on ssh-odoo17-staging"
+      inputs:
+        sshEndpoint: "ssh-odoo17-staging"
+        runOptions: "commands"
+        failOnStdErr: false
+        readyTimeout: "20000"
+        commands: |
+          # 1. Setup Environment & Reclaim Ownership
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
+          sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
+          cd /home/G02T04/e08g02t04-esmos-project || exit 1
 
-pool:
-  name: 'Default'
+          # 2. Hard Reset Code (Bulletproofed with explicit path)
+          [ ! -d "/home/G02T04/e08g02t04-esmos-project/.git" ] && git -C /home/G02T04/e08g02t04-esmos-project init -q && git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
+          git -C /home/G02T04/e08g02t04-esmos-project remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git -C /home/G02T04/e08g02t04-esmos-project fetch origin $(Build.SourceBranch) -q
+          git -C /home/G02T04/e08g02t04-esmos-project reset --hard FETCH_HEAD -q
 
-variables:
-- group: esmos-secrets
+          # 3. Inject Secrets Securely
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_USER=moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
 
-steps:
-- task: SSH@0
-  displayName: 'Inject Secrets and Deploy to Staging'
-  inputs:
-    sshEndpoint: 'ssh-odoo17-staging'
-    runOptions: 'commands'
-    failOnStdErr: false
-    commands: |
-      cd /home/G02T04
-      
-      # 1. Self-Healing: If the folder exists but is NOT a valid git repo, delete it completely
-      [ -d "e08g02t04-esmos-project/.git" ] || rm -rf e08g02t04-esmos-project
-      
-      # 2. Safely clone if the folder is missing
-      [ -d "e08g02t04-esmos-project" ] || git clone -q https://github.com/Nigellzy/e08g02t04-esmos-project.git
-      
-      # 3. Enter and update
-      cd e08g02t04-esmos-project
-      git pull -q
-      
-      # 4. Inject passwords and run
-      echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > .env
-      echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> .env
-      echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> .env
-      
-      chmod +x update_code.sh
-      ./update_code.sh
-    readyTimeout: '20000'
-    readyTimeout: '20000'
+          # 4. Create Filestore & Fix Permissions
+          mkdir -p /home/G02T04/e08g02t04-esmos-project/filestore
+          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore
+          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/addons
+          sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
+
+          # 5. Build and Deploy
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml down --remove-orphans
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml up -d
+
+          # 6. Automate the Database Upgrade
+          echo "Waiting for databases to initialize..."
+          sleep 15
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml restart web
+
+- stage: Deploy_Production
+  displayName: "Deploy to Production"
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'), ne(variables['Build.Reason'], 'PullRequest'))
+  jobs:
+  - job: DeployProduction
+    displayName: "Deploy ESMOS to Production"
+    steps:
+    - task: SSH@0
+      displayName: "Run production deploy on ssh-odoo17-prod"
+      inputs:
+        sshEndpoint: "ssh-odoo17-prod"
+        runOptions: "commands"
+        failOnStdErr: false
+        readyTimeout: "20000"
+        commands: |
+          # 1. Setup Environment & Reclaim Ownership
+          sudo mkdir -p /home/G02T04/e08g02t04-esmos-project
+          sudo chown -R G02T04:G02T04 /home/G02T04/e08g02t04-esmos-project
+          cd /home/G02T04/e08g02t04-esmos-project || exit 1
+
+          # 2. Hard Reset Code (Bulletproofed with explicit path)
+          [ ! -d "/home/G02T04/e08g02t04-esmos-project/.git" ] && git -C /home/G02T04/e08g02t04-esmos-project init -q && git -C /home/G02T04/e08g02t04-esmos-project remote add origin https://github.com/Nigellzy/e08g02t04-esmos-project.git || true
+          git -C /home/G02T04/e08g02t04-esmos-project remote set-url origin https://github.com/Nigellzy/e08g02t04-esmos-project.git
+          git -C /home/G02T04/e08g02t04-esmos-project fetch origin $(Build.SourceBranch) -q
+          git -C /home/G02T04/e08g02t04-esmos-project reset --hard FETCH_HEAD -q
+
+          # 3. Inject Secrets Securely
+          echo "POSTGRES_PASSWORD=$(DB_PASSWORD)" > /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_PASSWORD=$(MOODLE_DB_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_DATABASE=bitnami_moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+          echo "MARIADB_USER=moodle" >> /home/G02T04/e08g02t04-esmos-project/.env
+
+          # 4. Create Filestore & Fix Permissions
+          mkdir -p /home/G02T04/e08g02t04-esmos-project/filestore
+          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/filestore
+          sudo chown -R 101:101 /home/G02T04/e08g02t04-esmos-project/addons
+          sudo chmod -R 775 /home/G02T04/e08g02t04-esmos-project
+
+          # 5. Build and Deploy
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml build --build-arg POSTGRES_PASSWORD=$(DB_PASSWORD) --build-arg ODOO_ADMIN_PASSWORD=$(ODOO_ADMIN_PASSWORD)
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml down --remove-orphans
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml up -d
+
+          # 6. Automate the Database Upgrade
+          echo "Waiting for databases to initialize..."
+          sleep 15
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml exec -T -u odoo web odoo -u all -d postgres --stop-after-init
+          sudo docker compose -f /home/G02T04/e08g02t04-esmos-project/docker-compose.yml restart web
